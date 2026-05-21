@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { getDb } from '../db';
 import { generateReportPDF } from '../services/pdfService';
+import { generateNonResidencyPDF } from '../services/nonResidencyPdfService';
 
 const router = Router();
 
@@ -15,6 +16,31 @@ router.get('/export', async (req, res) => {
     console.error('Error generating PDF report download:', error);
     if (!res.headersSent) {
       res.status(500).json({ error: 'Failed to compile and export travel report PDF' });
+    }
+  }
+});
+
+// GET download Proof of Non-Residency PDF for a given target country
+router.get('/non-residency', async (req, res) => {
+  try {
+    const country   = ((req.query.country  as string) || '').trim();
+    const ownerName = ((req.query.name     as string) || '').trim();
+
+    if (!country) {
+      return res.status(400).json({ error: 'country query parameter is required.' });
+    }
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename=non_residency_${country.replace(/\s+/g, '_')}.pdf`
+    );
+
+    await generateNonResidencyPDF(country, ownerName, res);
+  } catch (error: any) {
+    console.error('Error generating non-residency PDF:', error);
+    if (!res.headersSent) {
+      res.status(500).json({ error: 'Failed to generate non-residency proof PDF' });
     }
   }
 });

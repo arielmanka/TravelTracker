@@ -276,4 +276,172 @@ router.get('/status', async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 });
+/**
+ * GET /api/settings/forecast?country=X&departureDate=YYYY-MM-DD
+ *
+ * Projects how many rolling-window days the user will have consumed on a given departure
+ * date, assuming they remain continuously in their last-logged country until that date.
+ * Returns remaining days available after that hypothetical departure.
+ */
+router.get('/forecast', async (req, res) => {
+    try {
+        const country = (req.query.country || '').trim();
+        const departureDate = (req.query.departureDate || '').trim();
+        if (!country || !departureDate || !/^\d{4}-\d{2}-\d{2}$/.test(departureDate)) {
+            return res.status(400).json({ error: 'country and departureDate (YYYY-MM-DD) are required.' });
+        }
+        const db = await (0, db_1.getDb)();
+        const limit = await db.get('SELECT * FROM limit_settings WHERE LOWER(country) = LOWER(?)', [country]);
+        if (!limit) {
+            return res.status(404).json({ error: `No limit configured for country: ${country}` });
+        }
+        const entries = await db.all('SELECT * FROM journey_entries ORDER BY entry_time ASC');
+        // Build dates map, extending the last stay to the departure date
+        const datesMap = buildCountryDatesMap(entries, departureDate);
+        const countryKey = country.toLowerCase();
+        const datesSet = datesMap[countryKey] || new Set();
+        // Rolling window that ends on departureDate
+        const dEnd = new Date(departureDate + 'T00:00:00Z');
+        const dStart = new Date(dEnd);
+        dStart.setDate(dEnd.getDate() - limit.rolling_period_days + 1);
+        const windowStartStr = dStart.toISOString().split('T')[0];
+        let daysSpent = 0;
+        for (const d of datesSet) {
+            if (d >= windowStartStr && d <= departureDate)
+                daysSpent++;
+        }
+        const daysRemaining = Math.max(0, limit.max_days - daysSpent);
+        res.json({
+            country: limit.country,
+            departureDate,
+            rollingPeriod: limit.rolling_period_days,
+            maxDays: limit.max_days,
+            daysSpentOnDate: daysSpent,
+            daysRemaining,
+            windowStart: windowStartStr,
+            status: daysSpent > limit.max_days ? 'exceeded'
+                : daysRemaining <= 10 ? 'critical'
+                    : daysRemaining <= 30 ? 'warning'
+                        : 'safe'
+        });
+    }
+    catch (error) {
+        console.error('Error computing forecast:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+/**
+ * GET /api/settings/safe-return?country=X&stayDays=N
+ *
+ * Finds the earliest date on which the user could return to a country and remain
+ * for stayDays consecutive days without breaching their rolling-window limit.
+ * Scans forward from tomorrow, day by day, until enough old dates fall off the window.
+ */
+router.get('/safe-return', async (req, res) => {
+    try {
+        const country = (req.query.country || '').trim();
+        const stayDays = Math.max(1, parseInt(req.query.stayDays || '1', 10));
+        if (!country) {
+            return res.status(400).json({ error: 'country is required.' });
+        }
+        const db = await (0, db_1.getDb)();
+        const limit = await db.get('SELECT * FROM limit_settings WHERE LOWER(country) = LOWER(?)', [country]);
+        if (!limit) {
+            return res.status(404).json({ error: `No limit configured for country: ${country}` });
+        }
+        const entries = await db.all('SELECT * FROM journey_entries ORDER BY entry_time ASC');
+        const datesMap = buildCountryDatesMap(entries);
+        const countryKey = country.toLowerCase();
+        const datesArr = Array.from(datesMap[countryKey] || new Set()).sort();
+        // Scan forward from tomorrow, checking if stayDays slots fit within the limit
+        const MAX_SCAN_DAYS = 400; // never scan more than ~13 months
+        const today = new Date();
+        today.setUTCHours(0, 0, 0, 0);
+        for (let offset = 1; offset <= MAX_SCAN_DAYS; offset++) {
+            const candidate = new Date(today);
+            candidate.setDate(today.getDate() + offset);
+            const candidateStr = candidate.toISOString().split('T')[0];
+            // The stay would occupy [candidate, candidate + stayDays - 1]
+            const stayEndDate = new Date(candidate);
+            stayEndDate.setDate(candidate.getDate() + stayDays - 1);
+            const stayEndStr = stayEndDate.toISOString().split('T')[0];
+            // Rolling window that ends on the last day of the proposed stay
+            const winEnd = new Date(stayEndDate);
+            const winStart = new Date(winEnd);
+            winStart.setDate(winEnd.getDate() - limit.rolling_period_days + 1);
+            const winStartStr = winStart.toISOString().split('T')[0];
+            // Count existing logged dates that fall in this future window
+            let existingInWindow = 0;
+            for (const d of datesArr) {
+                if (d >= winStartStr && d <= stayEndStr)
+                    existingInWindow++;
+            }
+            const daysAvailable = limit.max_days - existingInWindow;
+            if (daysAvailable >= stayDays) {
+                res.json({
+                    country: limit.country,
+                    stayDays,
+                    earliestReturnDate: candidateStr,
+                    daysAvailableOnReturn: daysAvailable,
+                    rollingPeriod: limit.rolling_period_days,
+                    maxDays: limit.max_days
+                });
+                return;
+            }
+        }
+        // Could not find a viable date within scan range
+        res.json({
+            country: limit.country,
+            stayDays,
+            earliestReturnDate: null,
+            daysAvailableOnReturn: 0,
+            message: `No available slot found within the next ${MAX_SCAN_DAYS} days for a ${stayDays}-day stay.`
+        });
+    }
+    catch (error) {
+        console.error('Error computing safe return date:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
 exports.default = router;
+/**
+ * Shared helper: build the complete set of dates (YYYY-MM-DD strings) spent in each
+ * country from the journey_entries chain, optionally extending the last stay to a
+ * future date if the user is still present there.
+ */
+function buildCountryDatesMap(entries, extendLastStayToDate // YYYY-MM-DD; only extends if last entry country matches
+) {
+    const map = {};
+    const todayStr = new Date().toISOString().split('T')[0];
+    for (let i = 0; i < entries.length; i++) {
+        const entry = entries[i];
+        const countryKey = entry.country.trim().toLowerCase();
+        if (!map[countryKey])
+            map[countryKey] = new Set();
+        const startStr = entry.entry_time.substring(0, 10);
+        const isLast = i === entries.length - 1;
+        const hasNext = !isLast;
+        let endStr;
+        if (hasNext) {
+            endStr = entries[i + 1].entry_time.substring(0, 10);
+        }
+        else if (extendLastStayToDate && extendLastStayToDate > startStr) {
+            // Extend the last stay to the hypothetical departure date
+            endStr = extendLastStayToDate;
+        }
+        else {
+            endStr = startStr; // 1-day presence
+        }
+        const current = new Date(startStr + 'T00:00:00Z');
+        const end = new Date(endStr + 'T00:00:00Z');
+        while (current <= end) {
+            const dStr = current.toISOString().split('T')[0];
+            if (dStr <= todayStr || extendLastStayToDate)
+                map[countryKey].add(dStr);
+            current.setDate(current.getDate() + 1);
+            if (hasNext && current >= end)
+                break;
+        }
+    }
+    return map;
+}

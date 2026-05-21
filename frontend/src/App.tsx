@@ -19,6 +19,8 @@ import { LimitsSettings } from './components/LimitsSettings';
 import { LLMAssistant } from './components/LLMAssistant';
 import { AnalyticsCharts } from './components/AnalyticsCharts';
 import { CalendarView } from './components/CalendarView';
+import { ForecastWidget } from './components/ForecastWidget';
+import { SafeReturnCalculator } from './components/SafeReturnCalculator';
 import { JourneyEntry, LimitSetting, LimitAlert, Message } from './types';
 
 export default function App() {
@@ -39,6 +41,11 @@ export default function App() {
   const [showEntryModal, setShowEntryModal] = React.useState(false);
   const [selectedEntry, setSelectedEntry] = React.useState<JourneyEntry | undefined>(undefined);
   const [prefillDate, setPrefillDate] = React.useState<string | undefined>(undefined);
+
+  // Non-Residency Report Modal
+  const [showNonResidencyModal, setShowNonResidencyModal] = React.useState(false);
+  const [nonResCountry, setNonResCountry] = React.useState('');
+  const [nonResName, setNonResName] = React.useState('');
 
   // Fetch all dashboard data
   const fetchData = async () => {
@@ -182,6 +189,17 @@ export default function App() {
     window.open('/api/reports/export', '_blank');
   };
 
+  // Non-Residency PDF Export
+  const handleExportNonResidency = () => {
+    if (!nonResCountry.trim()) return;
+    const params = new URLSearchParams({
+      country: nonResCountry.trim(),
+      name: nonResName.trim()
+    });
+    window.open(`/api/reports/non-residency?${params}`, '_blank');
+    setShowNonResidencyModal(false);
+  };
+
   if (isLoading) {
     return (
       <div style={{ display: 'flex', height: '100vh', width: '100vw', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-primary)', flexDirection: 'column', gap: '1rem' }}>
@@ -233,9 +251,14 @@ export default function App() {
           </button>
         </div>
 
-        <button className="btn btn-primary" onClick={handleExportPDF}>
-          <Download size={16} /> Export PDF Report
-        </button>
+        <div style={{ display: 'flex', gap: '0.5rem' }}>
+          <button className="btn btn-secondary" onClick={() => setShowNonResidencyModal(true)} style={{ fontSize: '0.82rem' }}>
+            <FileText size={15} /> Non-Residency Proof
+          </button>
+          <button className="btn btn-primary" onClick={handleExportPDF}>
+            <Download size={16} /> Export PDF Report
+          </button>
+        </div>
       </nav>
 
       {/* Main Workspace Layout */}
@@ -270,6 +293,12 @@ export default function App() {
                 setShowEntryModal(true);
               }}
             />
+
+            {/* Forecast + Safe Return tools */}
+            {alerts.length > 0 && (
+              <ForecastWidget alerts={alerts} />
+            )}
+            <SafeReturnCalculator limits={limits} />
 
             {/* Recent Stays timeline summary */}
             <div className="glass-card">
@@ -432,6 +461,60 @@ export default function App() {
           onSave={handleSaveEntry}
           onClose={() => { setShowEntryModal(false); setSelectedEntry(undefined); setPrefillDate(undefined); }}
         />
+      )}
+
+      {/* Non-Residency Report Modal */}
+      {showNonResidencyModal && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}>
+          <div className="glass-card" style={{ width: '420px', maxWidth: '95vw', padding: '2rem' }}>
+            <h3 style={{ fontSize: '1.15rem', marginBottom: '0.4rem' }}>Proof of Non-Residency</h3>
+            <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginBottom: '1.5rem' }}>
+              Generates a formal PDF report documenting your absence from a country over the last 365 days.
+            </p>
+
+            <div className="form-group">
+              <label className="form-label">Target Country (claimed non-resident of)</label>
+              <select
+                className="form-control"
+                value={nonResCountry}
+                onChange={e => setNonResCountry(e.target.value)}
+              >
+                <option value="">— Select country —</option>
+                {limits.map(l => (
+                  <option key={l.id} value={l.country}>{l.country}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Your Name / Reference (printed on report)</label>
+              <input
+                type="text"
+                className="form-control"
+                placeholder="e.g. John Smith"
+                value={nonResName}
+                onChange={e => setNonResName(e.target.value)}
+              />
+            </div>
+
+            <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1.25rem' }}>
+              <button
+                className="btn btn-primary"
+                style={{ flex: 1 }}
+                disabled={!nonResCountry}
+                onClick={handleExportNonResidency}
+              >
+                <Download size={15} /> Generate & Download
+              </button>
+              <button
+                className="btn btn-secondary"
+                onClick={() => setShowNonResidencyModal(false)}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

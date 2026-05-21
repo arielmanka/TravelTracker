@@ -3,6 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
 const db_1 = require("../db");
 const pdfService_1 = require("../services/pdfService");
+const nonResidencyPdfService_1 = require("../services/nonResidencyPdfService");
 const router = (0, express_1.Router)();
 // GET download compiled PDF report
 router.get('/export', async (req, res) => {
@@ -15,6 +16,25 @@ router.get('/export', async (req, res) => {
         console.error('Error generating PDF report download:', error);
         if (!res.headersSent) {
             res.status(500).json({ error: 'Failed to compile and export travel report PDF' });
+        }
+    }
+});
+// GET download Proof of Non-Residency PDF for a given target country
+router.get('/non-residency', async (req, res) => {
+    try {
+        const country = (req.query.country || '').trim();
+        const ownerName = (req.query.name || '').trim();
+        if (!country) {
+            return res.status(400).json({ error: 'country query parameter is required.' });
+        }
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `attachment; filename=non_residency_${country.replace(/\s+/g, '_')}.pdf`);
+        await (0, nonResidencyPdfService_1.generateNonResidencyPDF)(country, ownerName, res);
+    }
+    catch (error) {
+        console.error('Error generating non-residency PDF:', error);
+        if (!res.headersSent) {
+            res.status(500).json({ error: 'Failed to generate non-residency proof PDF' });
         }
     }
 });

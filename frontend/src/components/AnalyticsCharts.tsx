@@ -30,15 +30,30 @@ ChartJS.register(
 interface AnalyticsChartsProps {
   analytics: {
     countryStays: { country: string; days: number }[];
-    trends: { month: string; days: number }[];
+    trends: any[];
   };
 }
+
+const COLORS = [
+  '#10b981', // emerald
+  '#3b82f6', // blue
+  '#f59e0b', // amber
+  '#ef4444', // red
+  '#8b5cf6', // purple
+  '#ec4899', // pink
+  '#06b6d4', // cyan
+];
 
 export const AnalyticsCharts: React.FC<AnalyticsChartsProps> = ({ analytics }) => {
   const { countryStays, trends } = analytics;
 
   const hasStaysData = countryStays && countryStays.length > 0;
   const hasTrendsData = trends && trends.length > 0;
+
+  // Extract unique countries from the trends data for multiple lines
+  const trendCountries = Array.from(new Set(
+    trends.flatMap(t => Object.keys(t).filter(k => k !== 'month'))
+  ));
 
   // Chart 1: Stays by Country (Bar)
   const countryChartData = {
@@ -106,22 +121,23 @@ export const AnalyticsCharts: React.FC<AnalyticsChartsProps> = ({ analytics }) =
       const date = new Date(parseInt(year), parseInt(month) - 1, 1);
       return date.toLocaleDateString([], { month: 'short', year: 'numeric' });
     }),
-    datasets: [
-      {
-        fill: true,
-        label: 'Days Spent',
-        data: trends.map(item => item.days),
-        backgroundColor: 'rgba(16, 185, 129, 0.1)',
-        borderColor: '#10b981',
+    datasets: trendCountries.map((country, i) => {
+      const color = COLORS[i % COLORS.length];
+      return {
+        fill: false,
+        label: country,
+        data: trends.map(item => item[country] || 0),
+        backgroundColor: color + '33',
+        borderColor: color,
         borderWidth: 2.5,
-        pointBackgroundColor: '#10b981',
+        pointBackgroundColor: color,
         pointBorderColor: '#090d16',
         pointBorderWidth: 2,
-        pointRadius: 5,
-        pointHoverRadius: 7,
+        pointRadius: 4,
+        pointHoverRadius: 6,
         tension: 0.35
-      }
-    ]
+      };
+    })
   };
 
   const trendChartOptions: ChartOptions<'line'> = {
@@ -129,7 +145,20 @@ export const AnalyticsCharts: React.FC<AnalyticsChartsProps> = ({ analytics }) =
     maintainAspectRatio: false,
     plugins: {
       legend: {
-        display: false
+        display: true,
+        position: 'top',
+        labels: {
+          color: '#e2e8f0',
+          font: {
+            family: 'Inter'
+          },
+          usePointStyle: true,
+          boxWidth: 8
+        }
+      },
+      tooltip: {
+        mode: 'index',
+        intersect: false,
       }
     },
     scales: {
@@ -157,14 +186,19 @@ export const AnalyticsCharts: React.FC<AnalyticsChartsProps> = ({ analytics }) =
           stepSize: 1
         }
       }
+    },
+    interaction: {
+      mode: 'nearest',
+      axis: 'x',
+      intersect: false
     }
   };
 
   return (
-    <div className="grid-2">
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
       {/* Country stays chart */}
       <div className="glass-card">
-        <h3 style={{ fontSize: '1.1rem', marginBottom: '1.5rem' }}>Days Spent per Country</h3>
+        <h3 style={{ fontSize: '1.1rem', marginBottom: '1.5rem' }}>Days Spent per Country (Last 365 Days)</h3>
         <div style={{ height: '300px', position: 'relative' }}>
           {hasStaysData ? (
             <Bar data={countryChartData} options={countryChartOptions} />
@@ -178,7 +212,7 @@ export const AnalyticsCharts: React.FC<AnalyticsChartsProps> = ({ analytics }) =
 
       {/* Monthly trends chart */}
       <div className="glass-card">
-        <h3 style={{ fontSize: '1.1rem', marginBottom: '1.5rem' }}>Monthly Stay Timeline Trends</h3>
+        <h3 style={{ fontSize: '1.1rem', marginBottom: '1.5rem' }}>Monthly Stay Timeline Trends (Last 365 Days)</h3>
         <div style={{ height: '300px', position: 'relative' }}>
           {hasTrendsData ? (
             <Line data={trendChartData} options={trendChartOptions} />

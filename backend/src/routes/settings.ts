@@ -190,14 +190,14 @@ router.get('/status', async (req, res) => {
       
       // If there is a next entry, the stay ends on the next entry's start date (exclusive).
       // Otherwise, the stay ends on today (inclusive).
-      let endStr = todayStr;
+      let endStr = startStr;
       const hasNext = i < entries.length - 1;
       if (hasNext) {
         endStr = entries[i + 1].entry_time.substring(0, 10);
       }
       
-      const start = new Date(startStr + 'T00:00:00');
-      const end = new Date(endStr + 'T00:00:00');
+      const start = new Date(startStr + 'T00:00:00Z');
+      const end = new Date(endStr + 'T00:00:00Z');
       
       const current = new Date(start);
       if (hasNext) {
@@ -215,7 +215,7 @@ router.get('/status', async (req, res) => {
       }
     }
 
-    const parseDateStr = (dStr: string) => new Date(dStr + 'T00:00:00');
+    const parseDateStr = (dStr: string) => new Date(dStr + 'T00:00:00Z');
     const today = parseDateStr(todayStr);
 
     const alerts = [];
@@ -281,18 +281,24 @@ router.get('/status', async (req, res) => {
         }
       }
       
-      // Determine warning status: safe, warning (within 10% of limit), exceeded
+      // Determine warning status: safe, warning (at 30, 20, 10 days remaining), exceeded
       let status = 'safe';
       let message = `You have spent ${daysSpentCurrentWindow} days in the current ${limit.rolling_period_days}-day window. Limit is ${limit.max_days} days.`;
       
-      const ratio = daysSpentCurrentWindow / limit.max_days;
+      const daysRemaining = limit.max_days - daysSpentCurrentWindow;
       
       if (daysSpentCurrentWindow > limit.max_days) {
         status = 'exceeded';
         message = `ALERT: You exceeded the limit of ${limit.max_days} days (spent ${daysSpentCurrentWindow} days) in the rolling window ending today.`;
-      } else if (ratio >= 0.9) {
+      } else if (daysRemaining <= 10 && limit.max_days > 10) {
         status = 'warning';
-        message = `WARNING: Approaching limit! Spent ${daysSpentCurrentWindow}/${limit.max_days} days in the rolling window ending today.`;
+        message = `WARNING: Critical! Only ${daysRemaining} days left (${daysSpentCurrentWindow}/${limit.max_days} days used) in the rolling window.`;
+      } else if (daysRemaining <= 20 && limit.max_days > 20) {
+        status = 'warning';
+        message = `WARNING: Approaching limit! Only ${daysRemaining} days left (${daysSpentCurrentWindow}/${limit.max_days} days used) in the rolling window.`;
+      } else if (daysRemaining <= 30 && limit.max_days > 30) {
+        status = 'warning';
+        message = `WARNING: Notice! Only ${daysRemaining} days left (${daysSpentCurrentWindow}/${limit.max_days} days used) in the rolling window.`;
       }
       
       let peakExceeded = maxDaysSpentAnyWindow > limit.max_days;

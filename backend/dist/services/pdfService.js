@@ -16,7 +16,6 @@ async function generateReportPDF(stream) {
     const db = await (0, db_1.getDb)();
     // Fetch entries chronologically
     const entries = await db.all('SELECT * FROM journey_entries ORDER BY entry_time ASC');
-    const todayStr = new Date().toISOString().split('T')[0];
     const countryDays = {};
     const formattedSegments = [];
     for (let i = 0; i < entries.length; i++) {
@@ -24,15 +23,12 @@ async function generateReportPDF(stream) {
         const country = entry.country.trim();
         const startStr = entry.entry_time.substring(0, 10);
         const hasNext = i < entries.length - 1;
-        // Last entry: endDate = max(startStr, today) so arrival day always counts
         const endStr = hasNext
             ? entries[i + 1].entry_time.substring(0, 10)
-            : (startStr > todayStr ? startStr : todayStr);
-        const dStart = new Date(startStr + 'T00:00:00');
-        const dEnd = new Date(endStr + 'T00:00:00');
+            : startStr;
+        const dStart = new Date(startStr + 'T00:00:00Z');
+        const dEnd = new Date(endStr + 'T00:00:00Z');
         let durationDays = Math.round((dEnd.getTime() - dStart.getTime()) / (1000 * 60 * 60 * 24));
-        if (!hasNext)
-            durationDays += 1; // today is inclusive
         if (durationDays < 1)
             durationDays = 1;
         countryDays[country] = (countryDays[country] || 0) + durationDays;
@@ -188,7 +184,7 @@ async function generateReportPDF(stream) {
         doc.switchToPage(i);
         doc.strokeColor('#f1f5f9').lineWidth(1).moveTo(50, 785).lineTo(545, 785).stroke();
         doc.fillColor('#94a3b8').fontSize(8).font('Helvetica')
-            .text(`TravelTracker Report  |  Page ${i + 1} of ${range.count}`, 50, 792, { align: 'center' });
+            .text(`TravelTracker Report  |  Page ${i + 1} of ${range.count}`, 50, 792, { align: 'center', lineBreak: false });
     }
     doc.end();
 }

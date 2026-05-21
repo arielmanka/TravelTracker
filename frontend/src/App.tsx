@@ -67,23 +67,19 @@ export default function App() {
 
   // Compute start/end dates and stay duration for each entry in the chronological chain
   const computedEntries = React.useMemo(() => {
-    const todayStr = new Date().toISOString().split('T')[0];
-    
     return entries.map((entry, idx) => {
       const startStr = entry.entry_time.substring(0, 10);
       const hasNext  = idx < entries.length - 1;
 
       // Non-last: stay ends on next entry's arrival (exclusive upper-bound).
-      // Last:     stay ends on today. If arrival is somehow after today (future entry),
-      //           use arrival itself so the arrival day is always visible.
+      // Last:     stay ends on arrival date (1 day presence).
       const endStr = hasNext
         ? entries[idx + 1].entry_time.substring(0, 10)
-        : (startStr > todayStr ? startStr : todayStr);
+        : startStr;
 
-      const dStart = new Date(startStr + 'T00:00:00');
-      const dEnd   = new Date(endStr   + 'T00:00:00');
+      const dStart = new Date(startStr + 'T00:00:00Z');
+      const dEnd   = new Date(endStr   + 'T00:00:00Z');
       let durationDays = Math.round((dEnd.getTime() - dStart.getTime()) / (1000 * 60 * 60 * 24));
-      if (!hasNext) durationDays += 1; // today is inclusive
       if (durationDays < 1) durationDays = 1; // always count at least the arrival day
       
       return { ...entry, startDate: startStr, endDate: endStr, durationDays };

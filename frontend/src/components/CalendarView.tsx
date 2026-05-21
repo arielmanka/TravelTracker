@@ -27,7 +27,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({ entries, onDayClick 
 
   // Which entry "owns" a given date?
   // Non-last: [start, nextStart)   exclusive upper-bound
-  // Last:     [start, endDate]     endDate = max(arrival, today) — set by App.tsx computedEntries
+  // Last:     [start, endDate]     endDate = max(start, today) — set by App.tsx computedEntries
   const getCountryForDate = React.useCallback((dateStr: string): JourneyEntry | null => {
     for (let i = 0; i < entries.length; i++) {
       const entry  = entries[i];
@@ -44,8 +44,8 @@ export const CalendarView: React.FC<CalendarViewProps> = ({ entries, onDayClick 
     return null;
   }, [entries]);
 
-  // Which entry has this exact arrival date? (for the edit path)
-  const getEntryForArrival = React.useCallback((dateStr: string): JourneyEntry | null => {
+  // Which entry has this exact entry date? (for the edit path)
+  const getEntryForDate = React.useCallback((dateStr: string): JourneyEntry | null => {
     return entries.find(e => e.entry_time.substring(0, 10) === dateStr) ?? null;
   }, [entries]);
 
@@ -165,19 +165,19 @@ export const CalendarView: React.FC<CalendarViewProps> = ({ entries, onDayClick 
 
             {/* Day cells */}
             {daysInMonth.map((cell, idx) => {
-              const stay         = getCountryForDate(cell.dateStr);
-              const arrivalEntry = getEntryForArrival(cell.dateStr);
-              const colors       = stay ? getCountryColor(stay.country) : null;
-              const isToday      = cell.dateStr === todayStr;
-              const isArrival    = !!arrivalEntry;
+              const stay       = getCountryForDate(cell.dateStr);
+              const dateEntry  = getEntryForDate(cell.dateStr);
+              const colors     = stay ? getCountryColor(stay.country) : null;
+              const isToday    = cell.dateStr === todayStr;
+              const isEntryDate = !!dateEntry;
 
               return (
                 <div
                   key={idx}
-                  onClick={() => cell.isCurrentMonth ? onDayClick(cell.dateStr, arrivalEntry) : undefined}
+                  onClick={() => cell.isCurrentMonth ? onDayClick(cell.dateStr, dateEntry) : undefined}
                   title={
-                    arrivalEntry
-                      ? `Edit: ${arrivalEntry.city}, ${arrivalEntry.country} — click to edit`
+                    dateEntry
+                      ? `Edit: ${dateEntry.city}, ${dateEntry.country} — click to edit`
                       : stay
                         ? `${stay.city}, ${stay.country} — click to add entry`
                         : 'Click to log entry'
@@ -197,11 +197,11 @@ export const CalendarView: React.FC<CalendarViewProps> = ({ entries, onDayClick 
                       ? `2px solid var(--color-primary)`
                       : '1px solid var(--glass-border)',
                     borderLeft: colors
-                      ? `4px solid ${isArrival ? colors.solid : colors.solid + 'aa'}`
+                      ? `4px solid ${isEntryDate ? colors.solid : colors.solid + 'aa'}`
                       : isToday
                         ? '2px solid var(--color-primary)'
                         : '1px solid var(--glass-border)',
-                    boxShadow: isArrival ? `0 0 8px ${colors?.solid}66` : 'none',
+                    boxShadow: isEntryDate ? `0 0 8px ${colors?.solid}66` : 'none',
                     transition: 'all 0.15s ease',
                     position: 'relative'
                   }}
@@ -228,10 +228,10 @@ export const CalendarView: React.FC<CalendarViewProps> = ({ entries, onDayClick 
                     {cell.isCurrentMonth && (
                       <span style={{
                         fontSize: '0.6rem',
-                        color: isArrival ? colors?.solid : 'var(--text-muted)',
+                        color: isEntryDate ? colors?.solid : 'var(--text-muted)',
                         opacity: 0.7
                       }}>
-                        {isArrival ? <Edit3 size={9} /> : <Plus size={9} />}
+                        {isEntryDate ? <Edit3 size={9} /> : <Plus size={9} />}
                       </span>
                     )}
                   </div>
@@ -286,7 +286,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({ entries, onDayClick 
 
           <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: '0.5rem', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-              <Edit3 size={10} /> Edit entry (arrival day)
+              <Edit3 size={10} /> Edit entry (entry date)
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
               <Plus size={10} /> Log new entry

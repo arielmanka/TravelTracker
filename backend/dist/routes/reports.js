@@ -58,7 +58,7 @@ router.get('/analytics', async (req, res) => {
                 countryDatesMap[country] = new Set();
             }
             // Non-last entry: stay spans [startStr, nextEntryStartStr) exclusive.
-            // Last entry: endStr === startStr, so the loop runs once for the arrival day only.
+            // Last entry: endStr === startStr, so the loop runs once for the entry day only.
             const startStr = entry.entry_time.substring(0, 10);
             const hasNext = i < entries.length - 1;
             const endStr = hasNext

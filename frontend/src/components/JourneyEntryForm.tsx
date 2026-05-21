@@ -137,17 +137,14 @@ export const JourneyEntryForm: React.FC<JourneyEntryFormProps> = ({
     entry?.file_path ? `/uploads/${entry.file_path}` : null
   );
 
-  // Initialize entry time: editing > prefill date from calendar > now
+  // Initialize entry date: editing > prefill date from calendar > now
   React.useEffect(() => {
     if (entry?.entry_time) {
-      setEntryTime(entry.entry_time.replace(' ', 'T'));
+      setEntryTime(entry.entry_time.substring(0, 10));
     } else if (prefillDate) {
-      // Prefill with noon on the clicked date, in local time
-      setEntryTime(`${prefillDate}T12:00`);
+      setEntryTime(prefillDate);
     } else {
-      const now = new Date();
-      now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
-      setEntryTime(now.toISOString().slice(0, 16));
+      setEntryTime(new Date().toISOString().split('T')[0]);
     }
   }, [entry, prefillDate]);
 
@@ -197,7 +194,7 @@ export const JourneyEntryForm: React.FC<JourneyEntryFormProps> = ({
 
     if (!country.trim()) return setError('Country is required.');
     if (!city.trim()) return setError('City is required.');
-    if (!entryTime) return setError('Arrival date and time is required.');
+    if (!entryTime) return setError('Date is required.');
 
     try {
       setLoading(true);
@@ -205,8 +202,8 @@ export const JourneyEntryForm: React.FC<JourneyEntryFormProps> = ({
       const formData = new FormData();
       formData.append('country', country.trim());
       formData.append('city', city.trim());
-      // Convert HTML datetime-local YYYY-MM-DDTHH:MM to database friendly YYYY-MM-DD HH:MM
-      formData.append('entry_time', entryTime.replace('T', ' '));
+      // Convert HTML date YYYY-MM-DD to database friendly YYYY-MM-DD 12:00
+      formData.append('entry_time', `${entryTime} 12:00`);
       formData.append('notes', notes);
       if (file) formData.append('file', file);
 
@@ -260,10 +257,10 @@ export const JourneyEntryForm: React.FC<JourneyEntryFormProps> = ({
           </div>
 
           <div className="form-group">
-            <label className="form-label">Arrival Date & Time</label>
+            <label className="form-label">Date</label>
             <div style={{ position: 'relative' }}>
               <input
-                type="datetime-local"
+                type="date"
                 className="form-control"
                 value={entryTime}
                 onChange={(e) => setEntryTime(e.target.value)}

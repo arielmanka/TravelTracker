@@ -165,7 +165,7 @@ router.get('/status', async (req, res) => {
             }
             const startStr = entry.entry_time.substring(0, 10); // YYYY-MM-DD
             // Non-last entry: stay spans [startStr, nextEntryStartStr) exclusive.
-            // Last entry: endStr === startStr, so the loop runs exactly once (arrival day only).
+            // Last entry: endStr === startStr, so the loop runs exactly once (entry day only).
             const hasNext = i < entries.length - 1;
             const endStr = hasNext
                 ? entries[i + 1].entry_time.substring(0, 10)

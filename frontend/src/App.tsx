@@ -78,8 +78,8 @@ export default function App() {
       const startStr = entry.entry_time.substring(0, 10);
       const hasNext  = idx < entries.length - 1;
 
-      // Non-last: stay ends on next entry's arrival (exclusive upper-bound).
-      // Last:     stay ends on arrival date (1 day presence).
+      // Non-last: stay ends on next entry's start date (exclusive upper-bound).
+      // Last:     stay ends on entry date (1 day presence).
       const endStr = hasNext
         ? entries[idx + 1].entry_time.substring(0, 10)
         : startStr;
@@ -87,7 +87,7 @@ export default function App() {
       const dStart = new Date(startStr + 'T00:00:00Z');
       const dEnd   = new Date(endStr   + 'T00:00:00Z');
       let durationDays = Math.round((dEnd.getTime() - dStart.getTime()) / (1000 * 60 * 60 * 24));
-      if (durationDays < 1) durationDays = 1; // always count at least the arrival day
+      if (durationDays < 1) durationDays = 1; // always count at least the entry day
       
       return { ...entry, startDate: startStr, endDate: endStr, durationDays };
     });
@@ -321,7 +321,7 @@ export default function App() {
                             {entry.city}, {entry.country}
                           </h4>
                           <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '0.15rem' }}>
-                            Arrival: {entry.entry_time} | Calculated Stay: <strong>{entry.durationDays} day(s)</strong>
+                            Date: {entry.entry_time.substring(0, 10)} | Calculated Stay: <strong>{entry.durationDays} day(s)</strong>
                           </p>
                           {entry.notes && (
                             <p style={{ fontSize: '0.88rem', color: 'var(--text-secondary)', marginTop: '0.4rem' }}>
@@ -352,7 +352,7 @@ export default function App() {
                 <CalendarRange size={48} style={{ color: 'var(--text-muted)', marginBottom: '1rem', opacity: 0.5 }} />
                 <h3 style={{ marginBottom: '0.5rem' }}>No travel presence logged</h3>
                 <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginBottom: '1.5rem' }}>
-                  Log an entry containing country, city, date & time, and an attached ticket/receipt to infer stays.
+                  Log an entry containing country, city, date, and an attached ticket/receipt to infer stays.
                 </p>
                 <button className="btn btn-primary" onClick={() => { setSelectedEntry(undefined); setShowEntryModal(true); }}>
                   <Plus size={16} /> Log Entry
@@ -369,7 +369,7 @@ export default function App() {
                         <div>
                           <h3 style={{ fontSize: '1.3rem', display: 'inline' }}>{entry.city}, {entry.country}</h3>
                           <p style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.82rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
-                            <Calendar size={14} /> Arrival: <strong>{entry.entry_time}</strong>  |  Stay Duration: <strong>{entry.durationDays} day(s)</strong> (until {entry.endDate})
+                            <Calendar size={14} /> Date: <strong>{entry.entry_time.substring(0, 10)}</strong>  |  Stay Duration: <strong>{entry.durationDays} day(s)</strong> (until {entry.endDate})
                           </p>
                         </div>
                       </div>

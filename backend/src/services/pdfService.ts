@@ -46,28 +46,58 @@ export async function generateReportPDF(stream: NodeJS.WritableStream): Promise<
   // Fetch entries chronologically
   const entries = await db.all('SELECT * FROM journey_entries ORDER BY entry_time ASC');
 
-  const countryDays: Record<string, number> = {};
+  const today = new Date();
+  const todayStr = today.toISOString().split('T')[0];
+  const pastYear = new Date(today);
+  pastYear.setDate(today.getDate() - 365);
+  const pastYearStr = pastYear.toISOString().split('T')[0];
+
+  const countryDatesMap: Record<string, Set<string>> = {};
   const formattedSegments: any[] = [];
 
   for (let i = 0; i < entries.length; i++) {
-    const entry   = entries[i];
+    const entry = entries[i];
     const country = entry.country.trim();
 
+    if (!countryDatesMap[country]) {
+      countryDatesMap[country] = new Set<string>();
+    }
+
     const startStr = entry.entry_time.substring(0, 10);
-    const hasNext  = i < entries.length - 1;
+    const hasNext = i < entries.length - 1;
     const endStr = hasNext
       ? entries[i + 1].entry_time.substring(0, 10)
       : startStr;
 
-    const dStart = new Date(startStr + 'T00:00:00Z');
-    const dEnd   = new Date(endStr   + 'T00:00:00Z');
+    const current = new Date(startStr + 'T00:00:00Z');
+    const end     = new Date(endStr   + 'T00:00:00Z');
 
-    let durationDays = Math.round((dEnd.getTime() - dStart.getTime()) / (1000 * 60 * 60 * 24));
-    if (durationDays < 1) durationDays = 1;
+    let segmentDays = 0;
+    while (current <= end) {
+      const dateStr = current.toISOString().split('T')[0];
+      if (dateStr >= pastYearStr && dateStr <= todayStr) {
+        countryDatesMap[country].add(dateStr);
+        segmentDays++;
+      }
+      current.setDate(current.getDate() + 1);
+      if (hasNext && current >= end) break;
+    }
 
-    countryDays[country] = (countryDays[country] || 0) + durationDays;
+    if (segmentDays > 0) {
+      formattedSegments.push({
+        ...entry,
+        startDate: startStr,
+        endDate: endStr,
+        durationDays: segmentDays
+      });
+    }
+  }
 
-    formattedSegments.push({ ...entry, startDate: startStr, endDate: endStr, durationDays });
+  const countryDays: Record<string, number> = {};
+  for (const [country, dates] of Object.entries(countryDatesMap)) {
+    if (dates.size > 0) {
+      countryDays[country] = dates.size;
+    }
   }
 
   const totalDays    = Object.values(countryDays).reduce((s, d) => s + d, 0);
@@ -86,8 +116,10 @@ export async function generateReportPDF(stream: NodeJS.WritableStream): Promise<
      .text('TravelTracker Report', { align: 'center' });
   doc.moveDown(0.2);
   doc.fontSize(10).font('Helvetica').fillColor('#64748b')
+     .text(`Period Covered: ${pastYearStr} to ${todayStr}`, { align: 'center' });
+  doc.fontSize(8.5).font('Helvetica').fillColor('#94a3b8')
      .text(`Generated: ${new Date().toLocaleString()}`, { align: 'center' });
-  doc.moveDown(1.2);
+  doc.moveDown(1.0);
 
   doc.strokeColor('#e2e8f0').lineWidth(1).moveTo(LEFT, doc.y).lineTo(RIGHT, doc.y).stroke();
   doc.moveDown(1.2);
@@ -119,7 +151,7 @@ export async function generateReportPDF(stream: NodeJS.WritableStream): Promise<
     doc.moveDown(0.5);
 
     const chartLeft   = LEFT + 100;          // leave room for country labels
-    const chartRight  = RIGHT - 10;
+    const chartRight  = RIGHT - 40;          // leave room for day count labels on the right
     const chartWidth  = chartRight - chartLeft;
     const barHeight   = 16;
     const barGap      = 6;
@@ -172,10 +204,10 @@ export async function generateReportPDF(stream: NodeJS.WritableStream): Promise<
     doc.fillColor('#0f172a').fontSize(12).font('Helvetica-Bold')
        .text(`${segment.country} (${segment.city})`, LEFT, doc.y, { width: WIDTH });
 
-    // Arrival / duration line — always left-aligned, explicit x position
+    // Date / duration line — always left-aligned, explicit x position
     doc.fillColor('#475569').fontSize(9).font('Helvetica')
        .text(
-         `Arrival: ${segment.entry_time}  |  Duration: ${segment.durationDays} day(s) (${segment.startDate} → ${segment.endDate})`,
+         `Date: ${segment.startDate}  |  Duration: ${segment.durationDays} day(s) (${segment.startDate} → ${segment.endDate})`,
          LEFT, doc.y, { width: WIDTH }
        );
 
@@ -192,11 +224,14 @@ export async function generateReportPDF(stream: NodeJS.WritableStream): Promise<
       if (fs.existsSync(fullPath) && fs.lstatSync(fullPath).isFile()) {
         try {
           if (doc.y > 520) doc.addPage();
-          doc.image(fullPath, LEFT, doc.y, { fit: [350, 200] });
-          doc.moveDown(0.8);
+          const img = (doc as any).openImage(fullPath);
+          const scale = Math.min(350 / img.width, 200 / img.height);
+          const renderedHeight = img.height * scale;
+          doc.image(img, LEFT, doc.y, { fit: [350, 200] });
+          doc.y += renderedHeight + 10;
         } catch {
           doc.fillColor('#ef4444').fontSize(8.5).font('Helvetica-Bold')
-             .text(`[Cannot render image: ${segment.file_name}]`, LEFT, doc.y, { width: WIDTH });
+             .text(`[Cannot render image: ${segment.file_name || 'receipt'}]`, LEFT, doc.y, { width: WIDTH });
           doc.moveDown(0.5);
         }
       }

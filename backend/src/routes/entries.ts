@@ -47,12 +47,12 @@ router.post('/', upload.single('file'), async (req, res) => {
     
     if (!country || !city || !entry_time) {
       if (req.file) fs.unlinkSync(req.file.path);
-      return res.status(400).json({ error: 'Country, city, and entry time are required.' });
+      return res.status(400).json({ error: 'Country, city, and entry date are required.' });
     }
 
     const db = await getDb();
 
-    // Reject duplicate arrival date — two entries cannot start on the same day
+    // Reject duplicate entry date — two entries cannot start on the same day
     const newDate = entry_time.substring(0, 10); // YYYY-MM-DD
     const conflict = await db.get(
       `SELECT id FROM journey_entries WHERE substr(entry_time, 1, 10) = ?`,
@@ -61,7 +61,7 @@ router.post('/', upload.single('file'), async (req, res) => {
     if (conflict) {
       if (req.file) fs.unlinkSync(req.file.path);
       return res.status(409).json({
-        error: `An entry already exists for ${newDate}. Two entries cannot share the same arrival date.`
+        error: `An entry already exists for ${newDate}. Two entries cannot share the same entry date.`
       });
     }
 
@@ -107,7 +107,7 @@ router.put('/:id', upload.single('file'), async (req, res) => {
       return res.status(404).json({ error: 'Journey entry not found' });
     }
 
-    // If the arrival date is being changed, check no other entry uses that date
+    // If the entry date is being changed, check no other entry uses that date
     if (entry_time !== undefined) {
       const newDate = entry_time.substring(0, 10);
       const existingDate = existing.entry_time.substring(0, 10);
@@ -119,7 +119,7 @@ router.put('/:id', upload.single('file'), async (req, res) => {
         if (conflict) {
           if (req.file) fs.unlinkSync(req.file.path);
           return res.status(409).json({
-            error: `An entry already exists for ${newDate}. Two entries cannot share the same arrival date.`
+            error: `An entry already exists for ${newDate}. Two entries cannot share the same entry date.`
           });
         }
       }

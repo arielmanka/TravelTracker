@@ -60,7 +60,7 @@ ${Object.entries(countryDays).length === 0 ? 'No countries visited yet.' : Objec
 ### Travel Timeline Entries
 ${entries.length === 0 ? 'No journey entries logged.' : formattedSegments.map(s => {
             return `- **Stay**: ${s.city}, ${s.country}
-  Arrival Date/Time: ${s.entry_time}
+  Date: ${s.startDate}
   Calculated Duration: ${s.durationDays} day(s) (from ${s.startDate} to ${s.endDate})
   Receipt Image: ${s.file_name || 'None attached'}
   Notes: ${s.notes || 'None'}`;

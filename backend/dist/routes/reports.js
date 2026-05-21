@@ -38,48 +38,31 @@ router.get('/analytics', async (req, res) => {
             if (!countryDatesMap[country]) {
                 countryDatesMap[country] = new Set();
             }
+            // Non-last entry: stay spans [startStr, nextEntryStartStr) exclusive.
+            // Last entry: endStr === startStr, so the loop runs once for the arrival day only.
             const startStr = entry.entry_time.substring(0, 10);
-            let endStr = startStr;
             const hasNext = i < entries.length - 1;
-            if (hasNext) {
-                endStr = entries[i + 1].entry_time.substring(0, 10);
-            }
-            const start = new Date(startStr + 'T00:00:00Z');
+            const endStr = hasNext
+                ? entries[i + 1].entry_time.substring(0, 10)
+                : startStr;
+            const current = new Date(startStr + 'T00:00:00Z');
             const end = new Date(endStr + 'T00:00:00Z');
-            const current = new Date(start);
-            if (hasNext) {
-                while (current < end) {
-                    const dateStr = current.toISOString().split('T')[0];
-                    if (dateStr >= pastYearStr && dateStr <= todayStr) {
-                        countryDatesMap[country].add(dateStr);
-                        const monthKey = dateStr.substring(0, 7); // YYYY-MM
-                        if (!monthlyCountryStaysMap[monthKey]) {
-                            monthlyCountryStaysMap[monthKey] = {};
-                        }
-                        if (!monthlyCountryStaysMap[monthKey][country]) {
-                            monthlyCountryStaysMap[monthKey][country] = new Set();
-                        }
-                        monthlyCountryStaysMap[monthKey][country].add(dateStr);
-                    }
-                    current.setDate(current.getDate() + 1);
+            // For the last entry end === start so the loop executes exactly once.
+            while (current <= end) {
+                const dateStr = current.toISOString().split('T')[0];
+                if (dateStr >= pastYearStr && dateStr <= todayStr) {
+                    countryDatesMap[country].add(dateStr);
+                    const monthKey = dateStr.substring(0, 7); // YYYY-MM
+                    if (!monthlyCountryStaysMap[monthKey])
+                        monthlyCountryStaysMap[monthKey] = {};
+                    if (!monthlyCountryStaysMap[monthKey][country])
+                        monthlyCountryStaysMap[monthKey][country] = new Set();
+                    monthlyCountryStaysMap[monthKey][country].add(dateStr);
                 }
-            }
-            else {
-                while (current <= end) {
-                    const dateStr = current.toISOString().split('T')[0];
-                    if (dateStr >= pastYearStr && dateStr <= todayStr) {
-                        countryDatesMap[country].add(dateStr);
-                        const monthKey = dateStr.substring(0, 7);
-                        if (!monthlyCountryStaysMap[monthKey]) {
-                            monthlyCountryStaysMap[monthKey] = {};
-                        }
-                        if (!monthlyCountryStaysMap[monthKey][country]) {
-                            monthlyCountryStaysMap[monthKey][country] = new Set();
-                        }
-                        monthlyCountryStaysMap[monthKey][country].add(dateStr);
-                    }
-                    current.setDate(current.getDate() + 1);
-                }
+                // Advance; for non-last entries stop before the end date (next country's arrival).
+                current.setDate(current.getDate() + 1);
+                if (hasNext && current >= end)
+                    break;
             }
         }
         // Format country stays data

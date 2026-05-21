@@ -30,7 +30,7 @@ export default function App() {
   const [alerts, setAlerts] = React.useState<LimitAlert[]>([]);
   const [analytics, setAnalytics] = React.useState<{
     countryStays: { country: string; days: number }[];
-    trends: { month: string; days: number }[];
+    trends: Array<{ month: string; [country: string]: string | number }>;
   }>({ countryStays: [], trends: [] });
 
   const [isLoading, setIsLoading] = React.useState(true);

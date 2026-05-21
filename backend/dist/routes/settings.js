@@ -164,29 +164,20 @@ router.get('/status', async (req, res) => {
                 countryDatesMap[countryKey] = new Set();
             }
             const startStr = entry.entry_time.substring(0, 10); // YYYY-MM-DD
-            // If there is a next entry, the stay ends on the next entry's start date (exclusive).
-            // Otherwise, the stay ends on today (inclusive).
-            let endStr = startStr;
+            // Non-last entry: stay spans [startStr, nextEntryStartStr) exclusive.
+            // Last entry: endStr === startStr, so the loop runs exactly once (arrival day only).
             const hasNext = i < entries.length - 1;
-            if (hasNext) {
-                endStr = entries[i + 1].entry_time.substring(0, 10);
-            }
-            const start = new Date(startStr + 'T00:00:00Z');
+            const endStr = hasNext
+                ? entries[i + 1].entry_time.substring(0, 10)
+                : startStr;
+            const current = new Date(startStr + 'T00:00:00Z');
             const end = new Date(endStr + 'T00:00:00Z');
-            const current = new Date(start);
-            if (hasNext) {
-                while (current < end) {
-                    const dStr = current.toISOString().split('T')[0];
-                    countryDatesMap[countryKey].add(dStr);
-                    current.setDate(current.getDate() + 1);
-                }
-            }
-            else {
-                while (current <= end) {
-                    const dStr = current.toISOString().split('T')[0];
-                    countryDatesMap[countryKey].add(dStr);
-                    current.setDate(current.getDate() + 1);
-                }
+            while (current <= end) {
+                const dStr = current.toISOString().split('T')[0];
+                countryDatesMap[countryKey].add(dStr);
+                current.setDate(current.getDate() + 1);
+                if (hasNext && current >= end)
+                    break;
             }
         }
         const parseDateStr = (dStr) => new Date(dStr + 'T00:00:00Z');

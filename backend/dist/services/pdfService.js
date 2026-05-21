@@ -8,6 +8,43 @@ const pdfkit_1 = __importDefault(require("pdfkit"));
 const db_1 = require("../db");
 const path_1 = __importDefault(require("path"));
 const fs_1 = __importDefault(require("fs"));
+// Stable colour per country — deterministic hash → hue
+const countryColor = (country) => {
+    let hash = 0;
+    for (let j = 0; j < country.length; j++) {
+        hash = country.charCodeAt(j) + ((hash << 5) - hash);
+    }
+    return `hsl(${Math.abs(hash % 360)}, 65%, 50%)`;
+};
+// Convert hsl(h, s%, l%) string → [r, g, b] for PDFKit
+const hslToRgb = (hsl) => {
+    const m = hsl.match(/hsl\((\d+),\s*(\d+)%,\s*(\d+)%\)/);
+    if (!m)
+        return [100, 150, 200];
+    const h = parseInt(m[1]) / 360;
+    const s = parseInt(m[2]) / 100;
+    const l = parseInt(m[3]) / 100;
+    const hue2rgb = (p, q, t) => {
+        if (t < 0)
+            t += 1;
+        if (t > 1)
+            t -= 1;
+        if (t < 1 / 6)
+            return p + (q - p) * 6 * t;
+        if (t < 1 / 2)
+            return q;
+        if (t < 2 / 3)
+            return p + (q - p) * (2 / 3 - t) * 6;
+        return p;
+    };
+    const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+    const p = 2 * l - q;
+    return [
+        Math.round(hue2rgb(p, q, h + 1 / 3) * 255),
+        Math.round(hue2rgb(p, q, h) * 255),
+        Math.round(hue2rgb(p, q, h - 1 / 3) * 255),
+    ];
+};
 /**
  * Generates a styled, multi-page PDF report with stats, bar chart, timelines, and receipt images.
  * Writes the output to the provided writable stream.
@@ -77,44 +114,6 @@ async function generateReportPDF(stream) {
         const barHeight = 16;
         const barGap = 6;
         const maxDays = Math.max(...Object.values(countryDays));
-        // Stable colour per country (same hash used in the frontend)
-        const countryColor = (country) => {
-            let hash = 0;
-            for (let j = 0; j < country.length; j++) {
-                hash = country.charCodeAt(j) + ((hash << 5) - hash);
-            }
-            const hue = Math.abs(hash % 360);
-            return `hsl(${hue}, 65%, 50%)`;
-        };
-        // Helper: convert hsl string → approximate RGB for PDFKit
-        const hslToRgb = (hsl) => {
-            const m = hsl.match(/hsl\((\d+),\s*(\d+)%,\s*(\d+)%\)/);
-            if (!m)
-                return [100, 150, 200];
-            const h = parseInt(m[1]) / 360;
-            const s = parseInt(m[2]) / 100;
-            const l = parseInt(m[3]) / 100;
-            const hue2rgb = (p, q, t) => {
-                if (t < 0)
-                    t += 1;
-                if (t > 1)
-                    t -= 1;
-                if (t < 1 / 6)
-                    return p + (q - p) * 6 * t;
-                if (t < 1 / 2)
-                    return q;
-                if (t < 2 / 3)
-                    return p + (q - p) * (2 / 3 - t) * 6;
-                return p;
-            };
-            const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
-            const p = 2 * l - q;
-            return [
-                Math.round(hue2rgb(p, q, h + 1 / 3) * 255),
-                Math.round(hue2rgb(p, q, h) * 255),
-                Math.round(hue2rgb(p, q, h - 1 / 3) * 255),
-            ];
-        };
         const sortedCountries = Object.entries(countryDays).sort((a, b) => b[1] - a[1]);
         for (const [country, days] of sortedCountries) {
             if (doc.y > 700) {

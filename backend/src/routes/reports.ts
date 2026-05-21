@@ -35,16 +35,15 @@ router.get('/analytics', async (req, res) => {
     const pastYearStr = pastYear.toISOString().split('T')[0];
     
     const countryDatesMap: Record<string, Set<string>> = {};
-    const monthlyCountryStaysMap: Record<string, Record<string, Set<string>>> = {}; // YYYY-MM -> Country -> Dates
-    
+
     for (let i = 0; i < entries.length; i++) {
       const entry = entries[i];
       const country = entry.country.trim();
-      
+
       if (!countryDatesMap[country]) {
         countryDatesMap[country] = new Set<string>();
       }
-      
+
       // Non-last entry: stay spans [startStr, nextEntryStartStr) exclusive.
       // Last entry: endStr === startStr, so the loop runs once for the arrival day only.
       const startStr = entry.entry_time.substring(0, 10);
@@ -61,13 +60,7 @@ router.get('/analytics', async (req, res) => {
         const dateStr = current.toISOString().split('T')[0];
         if (dateStr >= pastYearStr && dateStr <= todayStr) {
           countryDatesMap[country].add(dateStr);
-
-          const monthKey = dateStr.substring(0, 7); // YYYY-MM
-          if (!monthlyCountryStaysMap[monthKey]) monthlyCountryStaysMap[monthKey] = {};
-          if (!monthlyCountryStaysMap[monthKey][country]) monthlyCountryStaysMap[monthKey][country] = new Set<string>();
-          monthlyCountryStaysMap[monthKey][country].add(dateStr);
         }
-        // Advance; for non-last entries stop before the end date (next country's arrival).
         current.setDate(current.getDate() + 1);
         if (hasNext && current >= end) break;
       }
@@ -81,16 +74,42 @@ router.get('/analytics', async (req, res) => {
       }))
       .filter(c => c.days > 0)
       .sort((a, b) => b.days - a.days); // Sort descending
-    
-    // Format monthly trends data
-    const trends = Object.entries(monthlyCountryStaysMap).map(([month, countryStaysObj]) => {
+
+    // Build all months in the 365-day window (past 12 complete months + current)
+    const allMonths: string[] = [];
+    const cursor = new Date(pastYear.getFullYear(), pastYear.getMonth(), 1);
+    const todayMonthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+    while (cursor <= todayMonthStart) {
+      const mm = String(cursor.getMonth() + 1).padStart(2, '0');
+      allMonths.push(`${cursor.getFullYear()}-${mm}`);
+      cursor.setMonth(cursor.getMonth() + 1);
+    }
+
+    // Pre-sort all dates per country for efficient scanning
+    const countryDatesSorted: Record<string, string[]> = {};
+    for (const [country, dates] of Object.entries(countryDatesMap)) {
+      countryDatesSorted[country] = Array.from(dates).sort();
+    }
+
+    // For each month, compute the cumulative days spent in the 365-day window up to end of that month
+    const allCountries = Object.keys(countryDatesMap);
+    const trends = allMonths.map(month => {
       const trendItem: any = { month };
-      for (const [country, dates] of Object.entries(countryStaysObj)) {
-        trendItem[country] = dates.size;
+      const monthEndStr = `${month}-31`; // string compare works; we just need an upper bound
+      for (const country of allCountries) {
+        const sorted = countryDatesSorted[country] || [];
+        // Count all dates in [pastYearStr, min(monthEnd, todayStr)]
+        const upperBound = monthEndStr < todayStr ? monthEndStr : todayStr;
+        let count = 0;
+        for (const d of sorted) {
+          if (d > upperBound) break;
+          count++;
+        }
+        trendItem[country] = count;
       }
       return trendItem;
-    }).sort((a, b) => a.month.localeCompare(b.month)); // Sort chronological
-    
+    });
+
     res.json({
       countryStays,
       trends

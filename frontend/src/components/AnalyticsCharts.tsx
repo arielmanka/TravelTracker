@@ -159,6 +159,9 @@ export const AnalyticsCharts: React.FC<AnalyticsChartsProps> = ({ analytics }) =
       tooltip: {
         mode: 'index',
         intersect: false,
+        callbacks: {
+          label: (ctx) => ` ${ctx.dataset.label}: ${ctx.parsed.y} cumulative days`
+        }
       }
     },
     scales: {
@@ -212,7 +215,7 @@ export const AnalyticsCharts: React.FC<AnalyticsChartsProps> = ({ analytics }) =
 
       {/* Monthly trends chart */}
       <div className="glass-card">
-        <h3 style={{ fontSize: '1.1rem', marginBottom: '1.5rem' }}>Monthly Stay Timeline Trends (Last 365 Days)</h3>
+        <h3 style={{ fontSize: '1.1rem', marginBottom: '1.5rem' }}>Cumulative Days per Country — Last 365 Days</h3>
         <div style={{ height: '300px', position: 'relative' }}>
           {hasTrendsData ? (
             <Line data={trendChartData} options={trendChartOptions} />

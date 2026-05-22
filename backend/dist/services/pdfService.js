@@ -81,8 +81,6 @@ async function generateReportPDF(stream) {
                 segmentDays++;
             }
             current.setDate(current.getDate() + 1);
-            if (hasNext && current >= end)
-                break;
         }
         if (segmentDays > 0) {
             formattedSegments.push({

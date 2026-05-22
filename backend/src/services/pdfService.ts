@@ -80,7 +80,6 @@ export async function generateReportPDF(stream: NodeJS.WritableStream): Promise<
         segmentDays++;
       }
       current.setDate(current.getDate() + 1);
-      if (hasNext && current >= end) break;
     }
 
     if (segmentDays > 0) {

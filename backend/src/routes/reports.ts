@@ -89,7 +89,6 @@ router.get('/analytics', async (req, res) => {
           countryDatesMap[country].add(dateStr);
         }
         current.setDate(current.getDate() + 1);
-        if (hasNext && current >= end) break;
       }
     }
     

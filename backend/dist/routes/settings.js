@@ -176,8 +176,6 @@ router.get('/status', async (req, res) => {
                 const dStr = current.toISOString().split('T')[0];
                 countryDatesMap[countryKey].add(dStr);
                 current.setDate(current.getDate() + 1);
-                if (hasNext && current >= end)
-                    break;
             }
         }
         const parseDateStr = (dStr) => new Date(dStr + 'T00:00:00Z');
@@ -439,8 +437,6 @@ function buildCountryDatesMap(entries, extendLastStayToDate // YYYY-MM-DD; only 
             if (dStr <= todayStr || extendLastStayToDate)
                 map[countryKey].add(dStr);
             current.setDate(current.getDate() + 1);
-            if (hasNext && current >= end)
-                break;
         }
     }
     return map;

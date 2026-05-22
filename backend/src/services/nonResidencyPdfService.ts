@@ -49,10 +49,9 @@ export async function generateNonResidencyPDF(
     const hasNext  = i < entries.length - 1;
     const endStr   = hasNext ? entries[i + 1].entry_time.substring(0, 10) : startStr;
 
-    const dStart = new Date(startStr + 'T00:00:00Z');
-    const dEnd   = new Date(endStr   + 'T00:00:00Z');
-    let durationDays = Math.round((dEnd.getTime() - dStart.getTime()) / (1000 * 60 * 60 * 24));
-    if (durationDays < 1) durationDays = 1;
+    const sDate = new Date(startStr + 'T00:00:00Z');
+    const eDate = new Date(endStr   + 'T00:00:00Z');
+    let durationDays = Math.round((eDate.getTime() - sDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
 
     // hasNext is stored so that display and counting loops can use the right boundary
     segments.push({ ...entry, startDate: startStr, endDate: endStr, durationDays, hasNext });
@@ -92,8 +91,6 @@ export async function generateNonResidencyPDF(
         else outsideDatesSet.add(d);
       }
       current.setDate(current.getDate() + 1);
-      // Non-last entries: stop before the end date (it belongs to the next entry's country)
-      if (hasNext && current >= end) break;
     }
   }
 

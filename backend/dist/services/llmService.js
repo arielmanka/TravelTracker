@@ -33,10 +33,7 @@ async function getTravelTrackerContext() {
             }
             const dStart = new Date(startStr + 'T00:00:00');
             const dEnd = new Date(endStr + 'T00:00:00');
-            let durationDays = Math.round((dEnd.getTime() - dStart.getTime()) / (1000 * 60 * 60 * 24));
-            if (!hasNext) {
-                durationDays += 1;
-            }
+            let durationDays = Math.round((dEnd.getTime() - dStart.getTime()) / (1000 * 60 * 60 * 24)) + 1;
             if (durationDays < 0)
                 durationDays = 0;
             countryDays[country] = (countryDays[country] || 0) + durationDays;

@@ -202,7 +202,6 @@ router.get('/status', async (req, res) => {
         const dStr = current.toISOString().split('T')[0];
         countryDatesMap[countryKey].add(dStr);
         current.setDate(current.getDate() + 1);
-        if (hasNext && current >= end) break;
       }
     }
 
@@ -506,7 +505,6 @@ function buildCountryDatesMap(
       const dStr = current.toISOString().split('T')[0];
       if (dStr <= todayStr || extendLastStayToDate) map[countryKey].add(dStr);
       current.setDate(current.getDate() + 1);
-      if (hasNext && current >= end) break;
     }
   }
 

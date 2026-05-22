@@ -93,15 +93,14 @@ export default function App() {
       const startStr = entry.entry_time.substring(0, 10);
       const hasNext  = idx < entries.length - 1;
 
-      // Non-last: stay ends on next entry's start date (exclusive upper-bound).
-      // Last:     stay ends on entry date (1 day presence).
+      // Transition dates are counted as a full presence day for both the departure country and the arrival country.
       const endStr = hasNext
         ? entries[idx + 1].entry_time.substring(0, 10)
         : startStr;
 
       const dStart = new Date(startStr + 'T00:00:00Z');
       const dEnd   = new Date(endStr   + 'T00:00:00Z');
-      let durationDays = Math.round((dEnd.getTime() - dStart.getTime()) / (1000 * 60 * 60 * 24));
+      let durationDays = Math.round((dEnd.getTime() - dStart.getTime()) / (1000 * 60 * 60 * 24)) + 1;
       if (durationDays < 1) durationDays = 1; // always count at least the entry day
       
       return { ...entry, startDate: startStr, endDate: endStr, durationDays };

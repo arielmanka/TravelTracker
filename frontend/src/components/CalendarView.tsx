@@ -25,23 +25,18 @@ export const CalendarView: React.FC<CalendarViewProps> = ({ entries, onDayClick 
     };
   }, []);
 
-  // Which entry "owns" a given date?
-  // Non-last: [start, nextStart)   exclusive upper-bound
-  // Last:     [start, endDate]     endDate = max(start, today) — set by App.tsx computedEntries
-  const getCountryForDate = React.useCallback((dateStr: string): JourneyEntry | null => {
+  // Find all entries that claim a given date (inclusive for transit days)
+  const getCountriesForDate = React.useCallback((dateStr: string): JourneyEntry[] => {
+    const matched: JourneyEntry[] = [];
     for (let i = 0; i < entries.length; i++) {
-      const entry  = entries[i];
-      const start  = entry.startDate || '';
-      const end    = entry.endDate   || '';
-      const isLast = i === entries.length - 1;
-
-      if (isLast) {
-        if (dateStr >= start && dateStr <= end) return entry;
-      } else {
-        if (dateStr >= start && dateStr < end) return entry;
+      const entry = entries[i];
+      const start = entry.startDate || '';
+      const end   = entry.endDate   || '';
+      if (dateStr >= start && dateStr <= end) {
+        matched.push(entry);
       }
     }
-    return null;
+    return matched;
   }, [entries]);
 
   // Which entry has this exact entry date? (for the edit path)
@@ -105,11 +100,11 @@ export const CalendarView: React.FC<CalendarViewProps> = ({ entries, onDayClick 
   const visibleCountries = React.useMemo(() => {
     const seen = new Set<string>();
     daysInMonth.forEach(cell => {
-      const stay = getCountryForDate(cell.dateStr);
-      if (stay) seen.add(stay.country);
+      const stays = getCountriesForDate(cell.dateStr);
+      stays.forEach(stay => seen.add(stay.country));
     });
     return Array.from(seen);
-  }, [daysInMonth, getCountryForDate]);
+  }, [daysInMonth, getCountriesForDate]);
 
   const todayStr  = new Date().toISOString().split('T')[0];
   const monthName = currentDate.toLocaleString('default', { month: 'long' });
@@ -165,23 +160,86 @@ export const CalendarView: React.FC<CalendarViewProps> = ({ entries, onDayClick 
 
             {/* Day cells */}
             {daysInMonth.map((cell, idx) => {
-              const stay       = getCountryForDate(cell.dateStr);
-              const dateEntry  = getEntryForDate(cell.dateStr);
-              const colors     = stay ? getCountryColor(stay.country) : null;
-              const isToday    = cell.dateStr === todayStr;
-              const isEntryDate = !!dateEntry;
+              const matchedStays = getCountriesForDate(cell.dateStr);
+              const dateEntry    = getEntryForDate(cell.dateStr);
+              const isToday      = cell.dateStr === todayStr;
+              const isEntryDate   = !!dateEntry;
+
+              let cellBackground = 'rgba(255,255,255,0.01)';
+              let borderLeftStyle = isToday ? '2px solid var(--color-primary)' : '1px solid var(--glass-border)';
+              let cellBoxShadow = 'none';
+              let badgeColor = 'var(--text-muted)';
+
+              let titleText = 'Click to log entry';
+              if (dateEntry) {
+                titleText = `Edit: ${dateEntry.city}, ${dateEntry.country} — click to edit`;
+              } else if (matchedStays.length === 1) {
+                titleText = `${matchedStays[0].city}, ${matchedStays[0].country} — click to add entry`;
+              } else if (matchedStays.length > 1) {
+                titleText = `Transition: ${matchedStays[0].city}, ${matchedStays[0].country} → ${matchedStays[1].city}, ${matchedStays[1].country} — click to add entry`;
+              }
+
+              let badgeElement = null;
+
+              if (matchedStays.length === 1) {
+                const colors = getCountryColor(matchedStays[0].country);
+                cellBackground = colors.light;
+                borderLeftStyle = `4px solid ${isEntryDate ? colors.solid : colors.solid + 'aa'}`;
+                if (isEntryDate) {
+                  cellBoxShadow = `0 0 8px ${colors.solid}66`;
+                  badgeColor = colors.solid;
+                }
+                badgeElement = (
+                  <span style={{
+                    fontSize: '0.6rem',
+                    background: colors.badge,
+                    border: `1px solid ${colors.border}`,
+                    color: '#ffffff',
+                    padding: '1px 3px',
+                    borderRadius: '2px',
+                    maxWidth: '100%',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                    fontWeight: 600
+                  }}>
+                    {matchedStays[0].city}
+                  </span>
+                );
+              } else if (matchedStays.length > 1) {
+                const colors1 = getCountryColor(matchedStays[0].country);
+                const colors2 = getCountryColor(matchedStays[1].country);
+                cellBackground = `linear-gradient(135deg, ${colors1.light} 50%, ${colors2.light} 50%)`;
+                // Show arrival country's color as the solid left border, indicating entry day
+                borderLeftStyle = `4px solid ${isEntryDate ? colors2.solid : colors2.solid + 'aa'}`;
+                if (isEntryDate) {
+                  cellBoxShadow = `0 0 8px ${colors2.solid}66`;
+                  badgeColor = colors2.solid;
+                }
+                badgeElement = (
+                  <span style={{
+                    fontSize: '0.55rem',
+                    background: `linear-gradient(135deg, ${colors1.badge} 50%, ${colors2.badge} 50%)`,
+                    border: `1px solid ${colors2.border}`,
+                    color: '#ffffff',
+                    padding: '1px 3px',
+                    borderRadius: '2px',
+                    maxWidth: '100%',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                    fontWeight: 600
+                  }}>
+                    {matchedStays[0].city} → {matchedStays[1].city}
+                  </span>
+                );
+              }
 
               return (
                 <div
                   key={idx}
                   onClick={() => cell.isCurrentMonth ? onDayClick(cell.dateStr, dateEntry) : undefined}
-                  title={
-                    dateEntry
-                      ? `Edit: ${dateEntry.city}, ${dateEntry.country} — click to edit`
-                      : stay
-                        ? `${stay.city}, ${stay.country} — click to add entry`
-                        : 'Click to log entry'
-                  }
+                  title={titleText}
                   style={{
                     aspectRatio: '1',
                     display: 'flex',
@@ -191,17 +249,13 @@ export const CalendarView: React.FC<CalendarViewProps> = ({ entries, onDayClick 
                     borderRadius: '6px',
                     cursor: cell.isCurrentMonth ? 'pointer' : 'default',
                     fontSize: '0.85rem',
-                    background: colors ? colors.light : 'rgba(255,255,255,0.01)',
+                    background: cellBackground,
                     opacity: cell.isCurrentMonth ? 1 : 0.3,
                     border: isToday
                       ? `2px solid var(--color-primary)`
                       : '1px solid var(--glass-border)',
-                    borderLeft: colors
-                      ? `4px solid ${isEntryDate ? colors.solid : colors.solid + 'aa'}`
-                      : isToday
-                        ? '2px solid var(--color-primary)'
-                        : '1px solid var(--glass-border)',
-                    boxShadow: isEntryDate ? `0 0 8px ${colors?.solid}66` : 'none',
+                    borderLeft: borderLeftStyle,
+                    boxShadow: cellBoxShadow,
                     transition: 'all 0.15s ease',
                     position: 'relative'
                   }}
@@ -220,7 +274,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({ entries, onDayClick 
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                     <span style={{
                       fontWeight: isToday ? 700 : 400,
-                      color: isToday ? 'var(--color-primary)' : (stay ? '#ffffff' : 'var(--text-primary)'),
+                      color: isToday ? 'var(--color-primary)' : (matchedStays.length > 0 ? '#ffffff' : 'var(--text-primary)'),
                       fontSize: '0.8rem'
                     }}>
                       {cell.dayNum}
@@ -228,7 +282,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({ entries, onDayClick 
                     {cell.isCurrentMonth && (
                       <span style={{
                         fontSize: '0.6rem',
-                        color: isEntryDate ? colors?.solid : 'var(--text-muted)',
+                        color: badgeColor,
                         opacity: 0.7
                       }}>
                         {isEntryDate ? <Edit3 size={9} /> : <Plus size={9} />}
@@ -237,23 +291,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({ entries, onDayClick 
                   </div>
 
                   {/* City badge */}
-                  {stay && (
-                    <span style={{
-                      fontSize: '0.6rem',
-                      background: colors?.badge || 'rgba(0,0,0,0.3)',
-                      border: `1px solid ${colors?.border}`,
-                      color: '#ffffff',
-                      padding: '1px 3px',
-                      borderRadius: '2px',
-                      maxWidth: '100%',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap',
-                      fontWeight: 600
-                    }}>
-                      {stay.city}
-                    </span>
-                  )}
+                  {badgeElement}
                 </div>
               );
             })}

@@ -2,6 +2,7 @@ import PDFDocument from 'pdfkit';
 import { getDb } from '../db';
 import path from 'path';
 import fs from 'fs';
+import { registerFonts } from './fontService';
 
 /**
  * Generates a formal Proof of Non-Residency PDF for a given target country.
@@ -103,6 +104,10 @@ export async function generateNonResidencyPDF(
   const doc = new PDFDocument({ margin: 60, size: 'A4', bufferPages: true });
   doc.pipe(stream);
 
+  const hasCustomFonts = registerFonts(doc);
+  const fRegular = hasCustomFonts ? 'Roboto' : 'Helvetica';
+  const fBold = hasCustomFonts ? 'Roboto-Bold' : 'Helvetica-Bold';
+
   const LEFT  = 60;
   const RIGHT = 535;
   const WIDTH = RIGHT - LEFT;
@@ -113,32 +118,32 @@ export async function generateNonResidencyPDF(
   };
 
   // ── Cover / Header ──────────────────────────────────────────────────────────
-  doc.fillColor('#0f172a').fontSize(22).font('Helvetica-Bold')
+  doc.fillColor('#0f172a').fontSize(22).font(fBold)
      .text('PROOF OF NON-RESIDENCY', { align: 'center' });
   doc.moveDown(0.3);
-  doc.fontSize(11).font('Helvetica').fillColor('#475569')
+  doc.fontSize(11).font(fRegular).fillColor('#475569')
      .text(`Statutory Tax Residency Compliance Document`, { align: 'center' });
   doc.moveDown(0.8);
 
   // Reference block
   const refY = doc.y;
   doc.rect(LEFT, refY, WIDTH, 58).fill('#f8fafc');
-  doc.fillColor('#64748b').fontSize(8).font('Helvetica')
+  doc.fillColor('#64748b').fontSize(8).font(fRegular)
      .text('PREPARED FOR', LEFT + 12, refY + 8);
-  doc.fillColor('#0f172a').fontSize(13).font('Helvetica-Bold')
+  doc.fillColor('#0f172a').fontSize(13).font(fBold)
      .text(ownerName || 'N/A', LEFT + 12, refY + 20);
-  doc.fillColor('#64748b').fontSize(8).font('Helvetica')
+  doc.fillColor('#64748b').fontSize(8).font(fRegular)
      .text('REPORT DATE', LEFT + 12, refY + 38);
-  doc.fillColor('#334155').fontSize(9).font('Helvetica')
+  doc.fillColor('#334155').fontSize(9).font(fRegular)
      .text(new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' }), LEFT + 12, refY + 48);
 
-  doc.fillColor('#64748b').fontSize(8).font('Helvetica')
+  doc.fillColor('#64748b').fontSize(8).font(fRegular)
      .text('PERIOD COVERED', LEFT + 240, refY + 8);
-  doc.fillColor('#334155').fontSize(9).font('Helvetica')
+  doc.fillColor('#334155').fontSize(9).font(fRegular)
      .text(`${windowStartStr}  →  ${windowEndStr}`, LEFT + 240, refY + 20);
-  doc.fillColor('#64748b').fontSize(8).font('Helvetica')
+  doc.fillColor('#64748b').fontSize(8).font(fRegular)
      .text('COUNTRY OF CLAIMED NON-RESIDENCY', LEFT + 240, refY + 38);
-  doc.fillColor('#0f172a').fontSize(11).font('Helvetica-Bold')
+  doc.fillColor('#0f172a').fontSize(11).font(fBold)
      .text(targetCountry.trim(), LEFT + 240, refY + 48);
 
   doc.y = refY + 70;
@@ -147,7 +152,7 @@ export async function generateNonResidencyPDF(
   divider();
 
   // ── Summary Statistics ──────────────────────────────────────────────────────
-  doc.fillColor('#1e293b').fontSize(13).font('Helvetica-Bold').text('Compliance Summary');
+  doc.fillColor('#1e293b').fontSize(13).font(fBold).text('Compliance Summary');
   doc.moveDown(0.5);
 
   const statY  = doc.y;
@@ -157,8 +162,8 @@ export async function generateNonResidencyPDF(
 
   const drawStat = (x: number, label: string, value: string, highlight = false) => {
     doc.rect(x, statY, statW, statH).fill(highlight ? '#fef3c7' : '#f1f5f9');
-    doc.fillColor('#64748b').fontSize(7).font('Helvetica').text(label, x + 8, statY + 8, { width: statW - 16 });
-    doc.fillColor(highlight ? '#92400e' : '#0f172a').fontSize(20).font('Helvetica-Bold')
+    doc.fillColor('#64748b').fontSize(7).font(fRegular).text(label, x + 8, statY + 8, { width: statW - 16 });
+    doc.fillColor(highlight ? '#92400e' : '#0f172a').fontSize(20).font(fBold)
        .text(value, x + 8, statY + 22, { width: statW - 16 });
   };
 
@@ -177,9 +182,9 @@ export async function generateNonResidencyPDF(
   const stmtY = doc.y;
   doc.rect(LEFT, stmtY, WIDTH, 36).fill(stmtBg);
   doc.rect(LEFT, stmtY, 4, 36).fill(stmtBorder);
-  doc.fillColor(stmtColor).fontSize(10).font('Helvetica-Bold')
+  doc.fillColor(stmtColor).fontSize(10).font(fBold)
      .text(
-       compliant
+        compliant
          ? `COMPLIANT: ${ownerName || 'The subject'} spent ${daysInTarget} day(s) in ${targetCountry} in the ${totalPeriodDays}-day period — below the 183-day threshold.`
          : `ATTENTION: ${ownerName || 'The subject'} spent ${daysInTarget} day(s) in ${targetCountry} in the ${totalPeriodDays}-day period — at or above the 183-day threshold.`,
        LEFT + 12, stmtY + 10, { width: WIDTH - 16, lineBreak: false }
@@ -190,10 +195,10 @@ export async function generateNonResidencyPDF(
   divider();
 
   // ── Absence Timeline ────────────────────────────────────────────────────────
-  doc.fillColor('#1e293b').fontSize(13).font('Helvetica-Bold')
+  doc.fillColor('#1e293b').fontSize(13).font(fBold)
      .text(`Documented Absence from ${targetCountry}`);
   doc.moveDown(0.4);
-  doc.fillColor('#64748b').fontSize(9).font('Helvetica')
+  doc.fillColor('#64748b').fontSize(9).font(fRegular)
      .text(`The following ${outsideSegments.length} stay(s) occurred OUTSIDE ${targetCountry} during the review period.`);
   doc.moveDown(0.8);
 
@@ -208,11 +213,11 @@ export async function generateNonResidencyPDF(
     // Colour indicator bar
     doc.rect(LEFT, rowY, 4, 38).fill('#10b981');
 
-    doc.fillColor('#0f172a').fontSize(11).font('Helvetica-Bold')
+    doc.fillColor('#0f172a').fontSize(11).font(fBold)
        .text(`${seg.country} — ${seg.city}`, LEFT + 12, rowY, { width: WIDTH - 12 });
-    doc.fillColor('#475569').fontSize(9).font('Helvetica')
+    doc.fillColor('#475569').fontSize(9).font(fRegular)
        .text(`Date: ${seg.startDate}`, LEFT + 12, rowY + 15, { width: 200 });
-    doc.fillColor('#475569').fontSize(9).font('Helvetica')
+    doc.fillColor('#475569').fontSize(9).font(fRegular)
        .text(`Duration: ${seg.durationDays} day(s)   (${seg.startDate} → ${seg.endDate})`, LEFT + 12, rowY + 26, { width: WIDTH - 12 });
 
     doc.y = rowY + 44;
@@ -229,7 +234,7 @@ export async function generateNonResidencyPDF(
           doc.image(img, LEFT + 12, doc.y, { fit: [280, 140] });
           doc.y += renderedHeight + 10;
         } catch {
-          doc.fillColor('#ef4444').fontSize(8).font('Helvetica-Bold')
+          doc.fillColor('#ef4444').fontSize(8).font(fBold)
              .text(`[Cannot render proof image: ${seg.file_name || 'receipt'}]`, LEFT + 12, doc.y, { width: WIDTH });
           doc.moveDown(0.4);
         }
@@ -244,7 +249,7 @@ export async function generateNonResidencyPDF(
     if (doc.y > 650) doc.addPage();
     doc.moveDown(0.5);
     divider();
-    doc.fillColor('#1e293b').fontSize(13).font('Helvetica-Bold')
+    doc.fillColor('#1e293b').fontSize(13).font(fBold)
        .text(`Stays Inside ${targetCountry} (${insideSegments.length} entry/entries)`);
     doc.moveDown(0.4);
 
@@ -252,9 +257,9 @@ export async function generateNonResidencyPDF(
       if (doc.y > 700) doc.addPage();
       const rowY = doc.y;
       doc.rect(LEFT, rowY, 4, 28).fill('#ef4444');
-      doc.fillColor('#334155').fontSize(10).font('Helvetica-Bold')
+      doc.fillColor('#334155').fontSize(10).font(fBold)
          .text(`${seg.city}`, LEFT + 12, rowY, { width: WIDTH - 12 });
-      doc.fillColor('#64748b').fontSize(8.5).font('Helvetica')
+      doc.fillColor('#64748b').fontSize(8.5).font(fRegular)
          .text(`${seg.startDate}  |  ${seg.durationDays} day(s)  (${seg.startDate} → ${seg.endDate})`, LEFT + 12, rowY + 14, { width: WIDTH - 12 });
       doc.y = rowY + 34;
     }
@@ -264,9 +269,9 @@ export async function generateNonResidencyPDF(
   if (doc.y > 680) doc.addPage();
   doc.moveDown(1);
   divider();
-  doc.fillColor('#1e293b').fontSize(11).font('Helvetica-Bold').text('Declaration');
+  doc.fillColor('#1e293b').fontSize(11).font(fBold).text('Declaration');
   doc.moveDown(0.4);
-  doc.fillColor('#334155').fontSize(8.5).font('Helvetica')
+  doc.fillColor('#334155').fontSize(8.5).font(fRegular)
      .text(
        `This document has been automatically generated by TravelTracker and is based on the travel records entered by the subject. ` +
        `The data presented herein, including travel dates, stay durations, and supporting receipt images, represents the subject's ` +
@@ -279,7 +284,7 @@ export async function generateNonResidencyPDF(
   doc.strokeColor('#94a3b8').lineWidth(0.5)
      .moveTo(LEFT, doc.y).lineTo(LEFT + 200, doc.y).stroke();
   doc.moveDown(0.3);
-  doc.fillColor('#64748b').fontSize(8).font('Helvetica')
+  doc.fillColor('#64748b').fontSize(8).font(fRegular)
      .text(`Signature / Date`, LEFT, doc.y);
 
   // ── Footer on every page ─────────────────────────────────────────────────────
@@ -287,7 +292,7 @@ export async function generateNonResidencyPDF(
   for (let i = range.start; i < range.start + range.count; i++) {
     doc.switchToPage(i);
     doc.strokeColor('#e2e8f0').lineWidth(0.5).moveTo(60, 820).lineTo(535, 820).stroke();
-    doc.fillColor('#94a3b8').fontSize(7.5).font('Helvetica')
+    doc.fillColor('#94a3b8').fontSize(7.5).font(fRegular)
        .text(
          `Proof of Non-Residency — ${targetCountry}  |  ${ownerName || ''}  |  Page ${i + 1} of ${range.count}`,
          60, 826, { align: 'center', lineBreak: false }

@@ -8,6 +8,7 @@ const cors_1 = __importDefault(require("cors"));
 const path_1 = __importDefault(require("path"));
 const dotenv_1 = __importDefault(require("dotenv"));
 const db_1 = require("./db");
+const fontService_1 = require("./services/fontService");
 // Load environmental variables
 dotenv_1.default.config();
 // Initialize routes
@@ -41,6 +42,8 @@ async function startServer() {
     try {
         // Connect and verify SQLite schema
         await (0, db_1.getDb)();
+        // Ensure Unicode fonts are ready
+        await (0, fontService_1.ensureFonts)();
         app.listen(port, () => {
             console.log(`Backend server started on port ${port}`);
             console.log(`Receipt uploads hosted from: ${path_1.default.resolve(uploadsDir)}`);

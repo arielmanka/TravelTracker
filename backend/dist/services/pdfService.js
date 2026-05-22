@@ -8,6 +8,7 @@ const pdfkit_1 = __importDefault(require("pdfkit"));
 const db_1 = require("../db");
 const path_1 = __importDefault(require("path"));
 const fs_1 = __importDefault(require("fs"));
+const fontService_1 = require("./fontService");
 // Stable colour per country — deterministic hash → hue
 const countryColor = (country) => {
     let hash = 0;
@@ -102,22 +103,25 @@ async function generateReportPDF(stream) {
     // ── Document setup ────────────────────────────────────────────────────────
     const doc = new pdfkit_1.default({ margin: 50, size: 'A4', bufferPages: true });
     doc.pipe(stream);
+    const hasCustomFonts = (0, fontService_1.registerFonts)(doc);
+    const fRegular = hasCustomFonts ? 'Roboto' : 'Helvetica';
+    const fBold = hasCustomFonts ? 'Roboto-Bold' : 'Helvetica-Bold';
     const LEFT = 50;
     const RIGHT = 545;
     const WIDTH = RIGHT - LEFT;
     // ── Title ─────────────────────────────────────────────────────────────────
-    doc.fillColor('#0f172a').fontSize(24).font('Helvetica-Bold')
+    doc.fillColor('#0f172a').fontSize(24).font(fBold)
         .text('TravelTracker Report', { align: 'center' });
     doc.moveDown(0.2);
-    doc.fontSize(10).font('Helvetica').fillColor('#64748b')
+    doc.fontSize(10).font(fRegular).fillColor('#64748b')
         .text(`Period Covered: ${pastYearStr} to ${todayStr}`, { align: 'center' });
-    doc.fontSize(8.5).font('Helvetica').fillColor('#94a3b8')
+    doc.fontSize(8.5).font(fRegular).fillColor('#94a3b8')
         .text(`Generated: ${new Date().toLocaleString()}`, { align: 'center' });
     doc.moveDown(1.0);
     doc.strokeColor('#e2e8f0').lineWidth(1).moveTo(LEFT, doc.y).lineTo(RIGHT, doc.y).stroke();
     doc.moveDown(1.2);
     // ── Summary cards ─────────────────────────────────────────────────────────
-    doc.fillColor('#1e293b').fontSize(14).font('Helvetica-Bold').text('Summary');
+    doc.fillColor('#1e293b').fontSize(14).font(fBold).text('Summary');
     doc.moveDown(0.5);
     const cardY = doc.y;
     const cardW = 150;
@@ -125,8 +129,8 @@ async function generateReportPDF(stream) {
     const cardGap = 15;
     const drawCard = (x, label, value) => {
         doc.rect(x, cardY, cardW, cardH).fill('#f1f5f9');
-        doc.fillColor('#64748b').fontSize(8).font('Helvetica').text(label, x + 10, cardY + 10, { width: cardW - 20 });
-        doc.fillColor('#0f172a').fontSize(22).font('Helvetica-Bold').text(value, x + 10, cardY + 26, { width: cardW - 20 });
+        doc.fillColor('#64748b').fontSize(8).font(fRegular).text(label, x + 10, cardY + 10, { width: cardW - 20 });
+        doc.fillColor('#0f172a').fontSize(22).font(fBold).text(value, x + 10, cardY + 26, { width: cardW - 20 });
     };
     drawCard(LEFT, 'TOTAL ENTRIES', `${entries.length}`);
     drawCard(LEFT + cardW + cardGap, 'COUNTRIES VISITED', `${countryCount}`);
@@ -134,7 +138,7 @@ async function generateReportPDF(stream) {
     doc.y = cardY + cardH + 28;
     // ── Bar chart: Days per country ───────────────────────────────────────────
     if (countryCount > 0) {
-        doc.fillColor('#1e293b').fontSize(14).font('Helvetica-Bold').text('Days per Country');
+        doc.fillColor('#1e293b').fontSize(14).font(fBold).text('Days per Country');
         doc.moveDown(0.5);
         const chartLeft = LEFT + 100; // leave room for country labels
         const chartRight = RIGHT - 40; // leave room for day count labels on the right
@@ -150,14 +154,14 @@ async function generateReportPDF(stream) {
             const rowY = doc.y;
             const barW = Math.max(2, (days / maxDays) * chartWidth);
             // Country label (left-aligned, truncated)
-            doc.fillColor('#1e293b').fontSize(8).font('Helvetica')
+            doc.fillColor('#1e293b').fontSize(8).font(fRegular)
                 .text(country, LEFT, rowY + 4, { width: 95, ellipsis: true });
             // Coloured bar
             const rgb = hslToRgb(countryColor(country));
             const hexColor = '#' + rgb.map(v => v.toString(16).padStart(2, '0')).join('');
             doc.fillColor(hexColor).rect(chartLeft, rowY, barW, barHeight).fill();
             // Day count label to the right of bar
-            doc.fillColor('#475569').fontSize(8).font('Helvetica')
+            doc.fillColor('#475569').fontSize(8).font(fRegular)
                 .text(`${days}d`, chartLeft + barW + 4, rowY + 4);
             doc.y = rowY + barHeight + barGap;
         }
@@ -167,7 +171,7 @@ async function generateReportPDF(stream) {
     doc.strokeColor('#e2e8f0').lineWidth(1).moveTo(LEFT, doc.y).lineTo(RIGHT, doc.y).stroke();
     doc.moveDown(1);
     // ── Detailed Travel Timeline ──────────────────────────────────────────────
-    doc.fillColor('#1e293b').fontSize(14).font('Helvetica-Bold').text('Detailed Travel Timeline');
+    doc.fillColor('#1e293b').fontSize(14).font(fBold).text('Detailed Travel Timeline');
     doc.moveDown(0.8);
     const uploadsDir = process.env.UPLOADS_DIR || './data/receipts';
     for (const segment of formattedSegments) {
@@ -177,10 +181,10 @@ async function generateReportPDF(stream) {
             .moveTo(LEFT, doc.y).lineTo(RIGHT, doc.y).stroke();
         doc.moveDown(0.5);
         // Heading: "France (Paris)" — no "Stay in"
-        doc.fillColor('#0f172a').fontSize(12).font('Helvetica-Bold')
+        doc.fillColor('#0f172a').fontSize(12).font(fBold)
             .text(`${segment.country} (${segment.city})`, LEFT, doc.y, { width: WIDTH });
         // Date / duration line — always left-aligned, explicit x position
-        doc.fillColor('#475569').fontSize(9).font('Helvetica')
+        doc.fillColor('#475569').fontSize(9).font(fRegular)
             .text(`Date: ${segment.startDate}  |  Duration: ${segment.durationDays} day(s) (${segment.startDate} → ${segment.endDate})`, LEFT, doc.y, { width: WIDTH });
         if (segment.notes) {
             doc.fillColor('#64748b').fontSize(9)
@@ -201,7 +205,7 @@ async function generateReportPDF(stream) {
                     doc.y += renderedHeight + 10;
                 }
                 catch {
-                    doc.fillColor('#ef4444').fontSize(8.5).font('Helvetica-Bold')
+                    doc.fillColor('#ef4444').fontSize(8.5).font(fBold)
                         .text(`[Cannot render image: ${segment.file_name || 'receipt'}]`, LEFT, doc.y, { width: WIDTH });
                     doc.moveDown(0.5);
                 }
@@ -213,7 +217,7 @@ async function generateReportPDF(stream) {
     for (let i = range.start; i < range.start + range.count; i++) {
         doc.switchToPage(i);
         doc.strokeColor('#f1f5f9').lineWidth(1).moveTo(50, 785).lineTo(545, 785).stroke();
-        doc.fillColor('#94a3b8').fontSize(8).font('Helvetica')
+        doc.fillColor('#94a3b8').fontSize(8).font(fRegular)
             .text(`TravelTracker Report  |  Page ${i + 1} of ${range.count}`, 50, 792, { align: 'center', lineBreak: false });
     }
     doc.end();

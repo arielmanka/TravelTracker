@@ -2,6 +2,7 @@ import PDFDocument from 'pdfkit';
 import { getDb } from '../db';
 import path from 'path';
 import fs from 'fs';
+import { registerFonts } from './fontService';
 
 // Stable colour per country — deterministic hash → hue
 const countryColor = (country: string): string => {
@@ -106,17 +107,21 @@ export async function generateReportPDF(stream: NodeJS.WritableStream): Promise<
   const doc = new PDFDocument({ margin: 50, size: 'A4', bufferPages: true });
   doc.pipe(stream);
 
+  const hasCustomFonts = registerFonts(doc);
+  const fRegular = hasCustomFonts ? 'Roboto' : 'Helvetica';
+  const fBold = hasCustomFonts ? 'Roboto-Bold' : 'Helvetica-Bold';
+
   const LEFT  = 50;
   const RIGHT = 545;
   const WIDTH = RIGHT - LEFT;
 
   // ── Title ─────────────────────────────────────────────────────────────────
-  doc.fillColor('#0f172a').fontSize(24).font('Helvetica-Bold')
+  doc.fillColor('#0f172a').fontSize(24).font(fBold)
      .text('TravelTracker Report', { align: 'center' });
   doc.moveDown(0.2);
-  doc.fontSize(10).font('Helvetica').fillColor('#64748b')
+  doc.fontSize(10).font(fRegular).fillColor('#64748b')
      .text(`Period Covered: ${pastYearStr} to ${todayStr}`, { align: 'center' });
-  doc.fontSize(8.5).font('Helvetica').fillColor('#94a3b8')
+  doc.fontSize(8.5).font(fRegular).fillColor('#94a3b8')
      .text(`Generated: ${new Date().toLocaleString()}`, { align: 'center' });
   doc.moveDown(1.0);
 
@@ -124,7 +129,7 @@ export async function generateReportPDF(stream: NodeJS.WritableStream): Promise<
   doc.moveDown(1.2);
 
   // ── Summary cards ─────────────────────────────────────────────────────────
-  doc.fillColor('#1e293b').fontSize(14).font('Helvetica-Bold').text('Summary');
+  doc.fillColor('#1e293b').fontSize(14).font(fBold).text('Summary');
   doc.moveDown(0.5);
 
   const cardY     = doc.y;
@@ -134,8 +139,8 @@ export async function generateReportPDF(stream: NodeJS.WritableStream): Promise<
 
   const drawCard = (x: number, label: string, value: string) => {
     doc.rect(x, cardY, cardW, cardH).fill('#f1f5f9');
-    doc.fillColor('#64748b').fontSize(8).font('Helvetica').text(label, x + 10, cardY + 10, { width: cardW - 20 });
-    doc.fillColor('#0f172a').fontSize(22).font('Helvetica-Bold').text(value, x + 10, cardY + 26, { width: cardW - 20 });
+    doc.fillColor('#64748b').fontSize(8).font(fRegular).text(label, x + 10, cardY + 10, { width: cardW - 20 });
+    doc.fillColor('#0f172a').fontSize(22).font(fBold).text(value, x + 10, cardY + 26, { width: cardW - 20 });
   };
 
   drawCard(LEFT,                        'TOTAL ENTRIES',      `${entries.length}`);
@@ -146,7 +151,7 @@ export async function generateReportPDF(stream: NodeJS.WritableStream): Promise<
 
   // ── Bar chart: Days per country ───────────────────────────────────────────
   if (countryCount > 0) {
-    doc.fillColor('#1e293b').fontSize(14).font('Helvetica-Bold').text('Days per Country');
+    doc.fillColor('#1e293b').fontSize(14).font(fBold).text('Days per Country');
     doc.moveDown(0.5);
 
     const chartLeft   = LEFT + 100;          // leave room for country labels
@@ -164,7 +169,7 @@ export async function generateReportPDF(stream: NodeJS.WritableStream): Promise<
       const barW    = Math.max(2, (days / maxDays) * chartWidth);
 
       // Country label (left-aligned, truncated)
-      doc.fillColor('#1e293b').fontSize(8).font('Helvetica')
+      doc.fillColor('#1e293b').fontSize(8).font(fRegular)
          .text(country, LEFT, rowY + 4, { width: 95, ellipsis: true });
 
       // Coloured bar
@@ -173,7 +178,7 @@ export async function generateReportPDF(stream: NodeJS.WritableStream): Promise<
       doc.fillColor(hexColor).rect(chartLeft, rowY, barW, barHeight).fill();
 
       // Day count label to the right of bar
-      doc.fillColor('#475569').fontSize(8).font('Helvetica')
+      doc.fillColor('#475569').fontSize(8).font(fRegular)
          .text(`${days}d`, chartLeft + barW + 4, rowY + 4);
 
       doc.y = rowY + barHeight + barGap;
@@ -187,7 +192,7 @@ export async function generateReportPDF(stream: NodeJS.WritableStream): Promise<
   doc.moveDown(1);
 
   // ── Detailed Travel Timeline ──────────────────────────────────────────────
-  doc.fillColor('#1e293b').fontSize(14).font('Helvetica-Bold').text('Detailed Travel Timeline');
+  doc.fillColor('#1e293b').fontSize(14).font(fBold).text('Detailed Travel Timeline');
   doc.moveDown(0.8);
 
   const uploadsDir = process.env.UPLOADS_DIR || './data/receipts';
@@ -200,11 +205,11 @@ export async function generateReportPDF(stream: NodeJS.WritableStream): Promise<
     doc.moveDown(0.5);
 
     // Heading: "France (Paris)" — no "Stay in"
-    doc.fillColor('#0f172a').fontSize(12).font('Helvetica-Bold')
+    doc.fillColor('#0f172a').fontSize(12).font(fBold)
        .text(`${segment.country} (${segment.city})`, LEFT, doc.y, { width: WIDTH });
 
     // Date / duration line — always left-aligned, explicit x position
-    doc.fillColor('#475569').fontSize(9).font('Helvetica')
+    doc.fillColor('#475569').fontSize(9).font(fRegular)
        .text(
          `Date: ${segment.startDate}  |  Duration: ${segment.durationDays} day(s) (${segment.startDate} → ${segment.endDate})`,
          LEFT, doc.y, { width: WIDTH }
@@ -229,7 +234,7 @@ export async function generateReportPDF(stream: NodeJS.WritableStream): Promise<
           doc.image(img, LEFT, doc.y, { fit: [350, 200] });
           doc.y += renderedHeight + 10;
         } catch {
-          doc.fillColor('#ef4444').fontSize(8.5).font('Helvetica-Bold')
+          doc.fillColor('#ef4444').fontSize(8.5).font(fBold)
              .text(`[Cannot render image: ${segment.file_name || 'receipt'}]`, LEFT, doc.y, { width: WIDTH });
           doc.moveDown(0.5);
         }
@@ -242,7 +247,7 @@ export async function generateReportPDF(stream: NodeJS.WritableStream): Promise<
   for (let i = range.start; i < range.start + range.count; i++) {
     doc.switchToPage(i);
     doc.strokeColor('#f1f5f9').lineWidth(1).moveTo(50, 785).lineTo(545, 785).stroke();
-    doc.fillColor('#94a3b8').fontSize(8).font('Helvetica')
+    doc.fillColor('#94a3b8').fontSize(8).font(fRegular)
        .text(`TravelTracker Report  |  Page ${i + 1} of ${range.count}`, 50, 792, { align: 'center', lineBreak: false });
   }
 

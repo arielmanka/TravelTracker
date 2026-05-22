@@ -3,6 +3,7 @@ import cors from 'cors';
 import path from 'path';
 import dotenv from 'dotenv';
 import { getDb } from './db';
+import { ensureFonts } from './services/fontService';
 
 // Load environmental variables
 dotenv.config();
@@ -44,6 +45,9 @@ async function startServer() {
   try {
     // Connect and verify SQLite schema
     await getDb();
+
+    // Ensure Unicode fonts are ready
+    await ensureFonts();
     
     app.listen(port, () => {
       console.log(`Backend server started on port ${port}`);

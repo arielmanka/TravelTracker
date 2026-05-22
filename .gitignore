@@ -3,5 +3,5 @@
 /backend/node_modules
 /data/travel_tracker.db
 /backend/dist
-/backend/data
+/backend/data/*
 /frontend/dist

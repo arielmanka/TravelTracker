@@ -24,12 +24,13 @@ router.get('/non-residency', async (req, res) => {
     try {
         const country = (req.query.country || '').trim();
         const ownerName = (req.query.name || '').trim();
+        const year = (req.query.year || '').trim();
         if (!country) {
             return res.status(400).json({ error: 'country query parameter is required.' });
         }
         res.setHeader('Content-Type', 'application/pdf');
         res.setHeader('Content-Disposition', `attachment; filename=non_residency_${country.replace(/\s+/g, '_')}.pdf`);
-        await (0, nonResidencyPdfService_1.generateNonResidencyPDF)(country, ownerName, res);
+        await (0, nonResidencyPdfService_1.generateNonResidencyPDF)(country, ownerName, res, year);
     }
     catch (error) {
         console.error('Error generating non-residency PDF:', error);

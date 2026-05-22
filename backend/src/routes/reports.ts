@@ -25,6 +25,7 @@ router.get('/non-residency', async (req, res) => {
   try {
     const country   = ((req.query.country  as string) || '').trim();
     const ownerName = ((req.query.name     as string) || '').trim();
+    const year      = ((req.query.year     as string) || '').trim();
 
     if (!country) {
       return res.status(400).json({ error: 'country query parameter is required.' });
@@ -36,7 +37,7 @@ router.get('/non-residency', async (req, res) => {
       `attachment; filename=non_residency_${country.replace(/\s+/g, '_')}.pdf`
     );
 
-    await generateNonResidencyPDF(country, ownerName, res);
+    await generateNonResidencyPDF(country, ownerName, res, year);
   } catch (error: any) {
     console.error('Error generating non-residency PDF:', error);
     if (!res.headersSent) {

@@ -46,6 +46,21 @@ export default function App() {
   const [showNonResidencyModal, setShowNonResidencyModal] = React.useState(false);
   const [nonResCountry, setNonResCountry] = React.useState('');
   const [nonResName, setNonResName] = React.useState('');
+  const [nonResPeriod, setNonResPeriod] = React.useState('rolling');
+
+  const years = React.useMemo(() => {
+    const currentYear = new Date().getFullYear();
+    const list = [];
+    for (let i = 0; i <= 10; i++) {
+      list.push(currentYear - i);
+    }
+    return list;
+  }, []);
+
+  const closeNonResidencyModal = () => {
+    setShowNonResidencyModal(false);
+    setNonResPeriod('rolling');
+  };
 
   // Fetch all dashboard data
   const fetchData = async () => {
@@ -196,8 +211,11 @@ export default function App() {
       country: nonResCountry.trim(),
       name: nonResName.trim()
     });
+    if (nonResPeriod !== 'rolling') {
+      params.append('year', nonResPeriod);
+    }
     window.open(`/api/reports/non-residency?${params}`, '_blank');
-    setShowNonResidencyModal(false);
+    closeNonResidencyModal();
   };
 
   if (isLoading) {
@@ -469,8 +487,22 @@ export default function App() {
           <div className="glass-card" style={{ width: '420px', maxWidth: '95vw', padding: '2rem' }}>
             <h3 style={{ fontSize: '1.15rem', marginBottom: '0.4rem' }}>Proof of Non-Residency</h3>
             <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginBottom: '1.5rem' }}>
-              Generates a formal PDF report documenting your absence from a country over the last 365 days.
+              Generates a formal PDF report documenting your absence from a country over {nonResPeriod === 'rolling' ? 'the last 365 days' : `the calendar year ${nonResPeriod}`}.
             </p>
+
+            <div className="form-group">
+              <label className="form-label">Period Covered</label>
+              <select
+                className="form-control"
+                value={nonResPeriod}
+                onChange={e => setNonResPeriod(e.target.value)}
+              >
+                <option value="rolling">Last 365 days (Default)</option>
+                {years.map(y => (
+                  <option key={y} value={String(y)}>{y} Calendar Year</option>
+                ))}
+              </select>
+            </div>
 
             <div className="form-group">
               <label className="form-label">Target Country (claimed non-resident of)</label>
@@ -508,7 +540,7 @@ export default function App() {
               </button>
               <button
                 className="btn btn-secondary"
-                onClick={() => setShowNonResidencyModal(false)}
+                onClick={closeNonResidencyModal}
               >
                 Cancel
               </button>

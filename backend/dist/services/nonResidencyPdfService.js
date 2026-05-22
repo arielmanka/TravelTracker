@@ -13,14 +13,29 @@ const fs_1 = __importDefault(require("fs"));
  * The document shows the travel history for the rolling 365-day period,
  * highlighting time spent OUTSIDE the target country as evidence of non-residency.
  */
-async function generateNonResidencyPDF(targetCountry, ownerName, stream) {
+async function generateNonResidencyPDF(targetCountry, ownerName, stream, year) {
     const db = await (0, db_1.getDb)();
     const entries = await db.all('SELECT * FROM journey_entries ORDER BY entry_time ASC');
     const today = new Date();
     const todayStr = today.toISOString().split('T')[0];
-    const pastYear = new Date(today);
-    pastYear.setDate(today.getDate() - 365);
-    const pastYearStr = pastYear.toISOString().split('T')[0];
+    let windowStartStr = '';
+    let windowEndStr = '';
+    let totalPeriodDays = 365;
+    if (year && /^\d{4}$/.test(year.trim())) {
+        const y = parseInt(year.trim(), 10);
+        windowStartStr = `${y}-01-01`;
+        windowEndStr = `${y}-12-31`;
+        const dStart = new Date(windowStartStr + 'T00:00:00Z');
+        const dEnd = new Date(windowEndStr + 'T00:00:00Z');
+        totalPeriodDays = Math.round((dEnd.getTime() - dStart.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+    }
+    else {
+        windowEndStr = todayStr;
+        const pastYear = new Date(today);
+        pastYear.setDate(today.getDate() - 365);
+        windowStartStr = pastYear.toISOString().split('T')[0];
+        totalPeriodDays = 365;
+    }
     // Build stay segments (same chained logic as the main report).
     // Store hasNext on the segment so display logic can use it.
     const segments = [];
@@ -40,9 +55,9 @@ async function generateNonResidencyPDF(targetCountry, ownerName, stream) {
     // Partition into inside / outside the target country (filter to window for display only)
     const targetKey = targetCountry.trim().toLowerCase();
     const outsideSegments = segments.filter(s => s.country.trim().toLowerCase() !== targetKey &&
-        (s.endDate >= pastYearStr || s.startDate >= pastYearStr));
+        (s.endDate >= windowStartStr && s.startDate <= windowEndStr));
     const insideSegments = segments.filter(s => s.country.trim().toLowerCase() === targetKey &&
-        (s.endDate >= pastYearStr || s.startDate >= pastYearStr));
+        (s.endDate >= windowStartStr && s.startDate <= windowEndStr));
     // Count unique dates inside and outside the target country within the window.
     // Use the same loop pattern as settings.ts: exclusive end for non-last entries,
     // single day for the last entry. This matches the dashboard calculation exactly.
@@ -58,7 +73,7 @@ async function generateNonResidencyPDF(targetCountry, ownerName, stream) {
         const end = new Date(endStr + 'T00:00:00Z');
         while (current <= end) {
             const d = current.toISOString().split('T')[0];
-            if (d >= pastYearStr && d <= todayStr) {
+            if (d >= windowStartStr && d <= windowEndStr) {
                 if (isInside)
                     insideDatesSet.add(d);
                 else
@@ -104,7 +119,7 @@ async function generateNonResidencyPDF(targetCountry, ownerName, stream) {
     doc.fillColor('#64748b').fontSize(8).font('Helvetica')
         .text('PERIOD COVERED', LEFT + 240, refY + 8);
     doc.fillColor('#334155').fontSize(9).font('Helvetica')
-        .text(`${pastYearStr}  →  ${todayStr}`, LEFT + 240, refY + 20);
+        .text(`${windowStartStr}  →  ${windowEndStr}`, LEFT + 240, refY + 20);
     doc.fillColor('#64748b').fontSize(8).font('Helvetica')
         .text('COUNTRY OF CLAIMED NON-RESIDENCY', LEFT + 240, refY + 38);
     doc.fillColor('#0f172a').fontSize(11).font('Helvetica-Bold')
@@ -128,7 +143,7 @@ async function generateNonResidencyPDF(targetCountry, ownerName, stream) {
     drawStat(LEFT, 'DAYS OUTSIDE TARGET', `${daysOutside}`);
     drawStat(LEFT + statW + statGap, 'DAYS IN TARGET', `${daysInTarget}`, daysInTarget > 183);
     drawStat(LEFT + (statW + statGap) * 2, 'TOTAL ENTRIES', `${entries.length}`);
-    drawStat(LEFT + (statW + statGap) * 3, 'PERIOD (DAYS)', '365');
+    drawStat(LEFT + (statW + statGap) * 3, 'PERIOD (DAYS)', `${totalPeriodDays}`);
     doc.y = statY + statH + 20;
     // Compliance statement
     const compliant = daysInTarget < 183;
@@ -140,8 +155,8 @@ async function generateNonResidencyPDF(targetCountry, ownerName, stream) {
     doc.rect(LEFT, stmtY, 4, 36).fill(stmtBorder);
     doc.fillColor(stmtColor).fontSize(10).font('Helvetica-Bold')
         .text(compliant
-        ? `COMPLIANT: ${ownerName || 'The subject'} spent ${daysInTarget} day(s) in ${targetCountry} in the 365-day period — below the 183-day threshold.`
-        : `ATTENTION: ${ownerName || 'The subject'} spent ${daysInTarget} day(s) in ${targetCountry} in the 365-day period — at or above the 183-day threshold.`, LEFT + 12, stmtY + 10, { width: WIDTH - 16, lineBreak: false });
+        ? `COMPLIANT: ${ownerName || 'The subject'} spent ${daysInTarget} day(s) in ${targetCountry} in the ${totalPeriodDays}-day period — below the 183-day threshold.`
+        : `ATTENTION: ${ownerName || 'The subject'} spent ${daysInTarget} day(s) in ${targetCountry} in the ${totalPeriodDays}-day period — at or above the 183-day threshold.`, LEFT + 12, stmtY + 10, { width: WIDTH - 16, lineBreak: false });
     doc.y = stmtY + 44;
     doc.moveDown(1);
     divider();
@@ -220,7 +235,7 @@ async function generateNonResidencyPDF(targetCountry, ownerName, stream) {
     doc.fillColor('#334155').fontSize(8.5).font('Helvetica')
         .text(`This document has been automatically generated by TravelTracker and is based on the travel records entered by the subject. ` +
         `The data presented herein, including travel dates, stay durations, and supporting receipt images, represents the subject's ` +
-        `recorded presence in various countries during the 365-day period ending ${todayStr}. ` +
+        `recorded presence in various countries during the period from ${windowStartStr} to ${windowEndStr}. ` +
         `This report is intended to assist in demonstrating compliance with international tax residency rules and should be reviewed ` +
         `by a qualified tax professional before submission to any authority.`, LEFT, doc.y, { width: WIDTH });
     doc.moveDown(1.5);

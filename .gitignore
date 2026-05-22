@@ -1,7 +1,7 @@
 /.env
 /frontend/node_modules
-/backend/node_modules
-/data/travel_tracker.db
-/backend/dist
-/backend/data/*
 /frontend/dist
+/backend/node_modules
+/backend/data
+/backend/dist
+/data
